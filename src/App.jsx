@@ -1180,7 +1180,7 @@ function OrganizerAuctionPanel({ tournament, state, updateState }) {
   return null;
 }
 
-function OrganizerDashboard({ state, updateState, onLogout, tournamentState, updateTournamentState }) {
+function OrganizerDashboard({ state, updateState, onLogout }) {
   const [selectedId, setSelectedId] = useState(state.tournaments[0]?.id);
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({ name: '', date: todayInputDate(), teamSize: 4, captainCount: 4, budget: 1000 });
@@ -1202,6 +1202,38 @@ function OrganizerDashboard({ state, updateState, onLogout, tournamentState, upd
   const tournament = state.tournaments.find((item) => item.id === selectedId) || state.tournaments[0];
   const playerIds = state.tournamentPlayerIds[tournament?.id] || [];
   const tournamentPlayers = state.players.filter((player) => playerIds.includes(player.id));
+
+  const tournamentState = tournament ? {
+    players: auctionEligiblePlayers(state.players.filter((player) => playerIds.includes(player.id)), tournament.captains || []),
+    captainData: state.tournamentCaptainData[tournament.id],
+    auction: state.tournamentAuctions[tournament.id],
+    competition: state.tournamentCompetitions?.[tournament.id] || createCompetition(),
+    captains: tournament.captains || [],
+    teamSize: getTournamentTeamSize(tournament),
+  } : null;
+
+  const updateTournamentState = (recipe) => updateState((draft) => {
+    const tourId = tournament.id;
+    if (!draft.tournamentCompetitions) draft.tournamentCompetitions = {};
+    const ids = new Set(draft.tournamentPlayerIds[tourId] || []);
+    const targetTournament = draft.tournaments.find((t) => t.id === tourId);
+    const scopedCaptains = targetTournament ? (targetTournament.captains || []) : [];
+    const scoped = {
+      players: auctionEligiblePlayers(draft.players.filter((player) => ids.has(player.id)), scopedCaptains),
+      captainData: draft.tournamentCaptainData[tourId],
+      auction: draft.tournamentAuctions[tourId],
+      competition: draft.tournamentCompetitions[tourId] || createCompetition(),
+      captains: scopedCaptains,
+      teamSize: getTournamentTeamSize(targetTournament),
+    };
+    recipe(scoped);
+    const scopedMap = new Map(scoped.players.map((player) => [player.id, player]));
+    draft.players = draft.players.map((player) => scopedMap.get(player.id) || player);
+    scoped.players.forEach((player) => { if (!draft.players.some((item) => item.id === player.id)) draft.players.push(player); });
+    draft.tournamentCaptainData[tourId] = scoped.captainData;
+    draft.tournamentAuctions[tourId] = scoped.auction;
+    draft.tournamentCompetitions[tourId] = scoped.competition;
+  });
 
   const createTournament = () => {
     if (!form.name.trim()) return;
@@ -1906,10 +1938,11 @@ function AppShell({ user, active, setActive, onLogout, onChangeTournament, child
   const captain = resolvedCaptains.find((item) => item.id === user.id);
   const club = getClubInfo(captain);
   const isCaptain = user.role === 'captain';
+  const isProfileSetupFinished = profileSetup?.complete || (auction?.phase && auction.phase !== 'scheduled');
   const navItems = isCaptain
     ? [
       ['squad', 'Squad', UsersRound],
-      ...(profileSetup?.complete ? [['auction', 'Auction', Radio]] : []),
+      ...(isProfileSetupFinished ? [['auction', 'Auction', Radio]] : []),
       ...(allPlayersAssigned ? [['tournament', 'Tournament', Swords]] : []),
       ['club', 'Club settings', Settings],
     ]
@@ -3261,15 +3294,19 @@ export default function App() {
     return tournamentState.players.length > 0 && tournamentState.players.every((p) => soldIds.includes(p.id));
   }, [tournamentState]);
 
+  const isProfileSetupFinished = useMemo(() => {
+    return profileSetup.complete || (tournamentState?.auction?.phase && tournamentState.auction.phase !== 'scheduled');
+  }, [profileSetup.complete, tournamentState?.auction?.phase]);
+
   useEffect(() => {
     if (user?.role === 'captain') {
-      if (!profileSetup.complete && (active === 'auction' || active === 'tournament')) {
+      if (!isProfileSetupFinished && (active === 'auction' || active === 'tournament')) {
         setActive('squad');
-      } else if (profileSetup.complete && active === 'tournament' && !allPlayersAssigned) {
+      } else if (isProfileSetupFinished && active === 'tournament' && !allPlayersAssigned) {
         setActive('squad');
       }
     }
-  }, [active, profileSetup.complete, allPlayersAssigned, user?.role]);
+  }, [active, isProfileSetupFinished, allPlayersAssigned, user?.role]);
 
   const loginCaptains = useMemo(() => {
     const list = [];
@@ -3293,9 +3330,9 @@ export default function App() {
   else if (!tournament) view = <TournamentSelector user={user} state={state} onSelect={setSelectedTournamentId} onLogout={logout} />;
   else view = (
     <AppShell user={user} active={active} setActive={setActive} onLogout={logout} onChangeTournament={() => setSelectedTournamentId(null)} budget={budget} tournament={tournament} players={state.players} captains={tournamentState.captains} profileSetup={profileSetup} allPlayersAssigned={allPlayersAssigned} auction={tournamentState?.auction}>
-      {user.role === 'captain' && active === 'squad' && <SquadRoom user={user} state={tournamentState} updateState={updateTournamentState} goAuction={() => profileSetup.complete && setActive('auction')} profileSetup={profileSetup} />}
-      {user.role === 'captain' && active === 'auction' && profileSetup.complete && <AuctionRoom user={user} state={tournamentState} updateState={updateTournamentState} startingBudget={tournament.budget} goTournament={() => setActive('tournament')} />}
-      {user.role === 'captain' && active === 'tournament' && profileSetup.complete && <TournamentHub user={user} state={tournamentState} updateState={updateTournamentState} />}
+      {user.role === 'captain' && active === 'squad' && <SquadRoom user={user} state={tournamentState} updateState={updateTournamentState} goAuction={() => isProfileSetupFinished && setActive('auction')} profileSetup={profileSetup} />}
+      {user.role === 'captain' && active === 'auction' && isProfileSetupFinished && <AuctionRoom user={user} state={tournamentState} updateState={updateTournamentState} startingBudget={tournament.budget} goTournament={() => setActive('tournament')} />}
+      {user.role === 'captain' && active === 'tournament' && isProfileSetupFinished && <TournamentHub user={user} state={tournamentState} updateState={updateTournamentState} />}
       {user.role === 'captain' && active === 'club' && <ClubSettings user={user} state={tournamentState} updateState={updateTournamentState} />}
       {user.role === 'player' && active === 'profile' && <PlayerProfile user={user} state={tournamentState} updateState={updateState} player={state.players.find((p) => p.id === user.id)} showPool={() => setActive('pool')} />}
       {user.role === 'player' && active === 'pool' && <PlayerPool state={tournamentState} />}
