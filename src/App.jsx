@@ -235,7 +235,8 @@ const createAuction = () => ({
   bid: 0,
   leaderId: null,
   history: [],
-  order: []
+  order: [],
+  countdownEndTime: null
 });
 
 const auctionEligiblePlayers = (players, tournamentCaptains = []) => {
@@ -678,6 +679,21 @@ function OrganizerAuctionPanel({ tournament, state, updateState }) {
   const teamSize = tournament.teamSize || Math.floor(Number(tournament.totalPlayers || 16) / Number(tournament.captainCount)) || 4;
 
   const [schedTime, setSchedTime] = useState(auction.scheduledTime || '');
+  const [timeLeft, setTimeLeft] = useState(0);
+
+  useEffect(() => {
+    if (!auction.countdownEndTime) {
+      setTimeLeft(0);
+      return undefined;
+    }
+    const updateTime = () => {
+      const remaining = Math.max(0, Math.ceil((auction.countdownEndTime - Date.now()) / 1000));
+      setTimeLeft(remaining);
+    };
+    updateTime();
+    const interval = setInterval(updateTime, 250);
+    return () => clearInterval(interval);
+  }, [auction.countdownEndTime]);
 
   const saveScheduledTime = () => {
     updateState((draft) => {
@@ -778,6 +794,7 @@ function OrganizerAuctionPanel({ tournament, state, updateState }) {
       const rival = rivals[Math.floor(Math.random() * rivals.length)];
       tAuction.bid = rivalPrice;
       tAuction.leaderId = rival.id;
+      tAuction.countdownEndTime = null;
       tAuction.history.unshift({ type: 'bid', text: `${rival.handle || rival.tag || ''} bid ${tAuction.bid}` });
     });
   };
@@ -908,6 +925,32 @@ function OrganizerAuctionPanel({ tournament, state, updateState }) {
     });
   };
 
+  const startCountdown = () => {
+    updateState((draft) => {
+      const tourId = tournament.id;
+      if (!draft.tournamentAuctions[tourId]) return;
+      draft.tournamentAuctions[tourId].countdownEndTime = Date.now() + 5000;
+    });
+  };
+
+  useEffect(() => {
+    if (auction.phase !== 'bidding' || !auction.countdownEndTime) return undefined;
+    
+    const interval = setInterval(() => {
+      const remaining = auction.countdownEndTime - Date.now();
+      if (remaining <= 0) {
+        clearInterval(interval);
+        if (auction.leaderId) {
+          sellPlayer();
+        } else {
+          passPlayer();
+        }
+      }
+    }, 200);
+
+    return () => clearInterval(interval);
+  }, [auction.phase, auction.countdownEndTime, auction.leaderId]);
+
   const resetAuction = () => {
     if (!window.confirm('Reset the entire auction? This will clear all bids, sales, squads, and auction history.')) return;
     updateState((draft) => {
@@ -1030,7 +1073,7 @@ function OrganizerAuctionPanel({ tournament, state, updateState }) {
                 <span className="lot-label">Now on the block</span>
                 <Avatar person={activePlayer} size="xl" />
                 <h1>{activePlayer.tag}</h1><p>{activePlayer.name}</p>
-                <div className="lot-stats"><span><b>{activePlayer.rating}</b> OVR</span><span><b>{activePlayer.primary}</b> Position</span></div>
+                <div className="lot-stats"><span><b>{activePlayer.primary}</b> Position</span></div>
               </section>
             )}
             <section className="bid-console" style={{ background: 'var(--panel)', padding: '24px', borderRadius: '14px' }}>
@@ -1041,6 +1084,13 @@ function OrganizerAuctionPanel({ tournament, state, updateState }) {
               </div>
               
               <div className="demo-controls" style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '20px', border: 0, padding: 0 }}>
+                {timeLeft > 0 ? (
+                  <div className="countdown-alert" style={{ background: '#ff3b30', color: '#fff', padding: '10px', borderRadius: '8px', textAlign: 'center', fontWeight: 'bold', fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    <Clock3 size={15} /> Closing in {timeLeft}s
+                  </div>
+                ) : (
+                  <button className="primary" onClick={startCountdown} style={{ background: '#ff9500', color: '#fff', border: '1px solid rgba(255,149,0,0.2)' }}><Clock3 size={15} /> Start Countdown (5s)</button>
+                )}
                 <button className="primary" onClick={rivalBid} style={{ background: 'var(--lime-dark)', color: 'var(--lime)', border: '1px solid rgba(217,255,99,0.2)' }}><Sparkles size={16} /> Simulate rival +25</button>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                   <button className="primary" onClick={sellPlayer} disabled={!leader}>Close &amp; award player</button>
@@ -1605,11 +1655,6 @@ function OrganizerDashboard({ state, updateState, onLogout }) {
                       <p>{tournamentPlayers.length} players currently registered in this competition.</p>
                     </div>
                     <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                      {tournamentPlayers.some(p => !isPlayerProfileReady(p)) && (
-                        <button className="secondary" onClick={readyAllPlayerProfiles}>
-                          <BadgeCheck size={15} /> Ready All Profiles
-                        </button>
-                      )}
                       {tournament.status === 'draft' ? (
                         <button className="secondary" onClick={() => setShowAddPlayer(!showAddPlayer)}>{showAddPlayer ? <X size={15} /> : <UserPlus size={15} />} {showAddPlayer ? 'Cancel' : 'Add Player'}</button>
                       ) : (
@@ -1632,10 +1677,9 @@ function OrganizerDashboard({ state, updateState, onLogout }) {
                   )}
                   {tournamentPlayers.length > 0 ? (
                     <div className="roster-list">
-                      <div className="roster-list-header" style={{ gridTemplateColumns: tournament.status === 'draft' ? '2fr 1fr 1fr 1.5fr 80px' : '2fr 1fr 1fr 1.5fr' }}>
+                      <div className="roster-list-header" style={{ gridTemplateColumns: tournament.status === 'draft' ? '2fr 1.2fr 1.5fr 80px' : '2fr 1.2fr 1.5fr' }}>
                         <span>Player Details</span>
                         <span>Positions</span>
-                        <span>Style</span>
                         <span>{tournament.status === 'draft' ? 'Captain Team' : 'Assigned Team'}</span>
                         {tournament.status === 'draft' && <span>Action</span>}
                       </div>
@@ -1647,7 +1691,7 @@ function OrganizerDashboard({ state, updateState, onLogout }) {
                           const assignedCapInfo = tournament.captains?.find((c) => c.id === assignedCap);
 
                           return (
-                            <div className="roster-item" key={player.id} style={{ gridTemplateColumns: tournament.status === 'draft' ? '2fr 1fr 1fr 1.5fr 80px' : '2fr 1fr 1fr 1.5fr' }}>
+                            <div className="roster-item" key={player.id} style={{ gridTemplateColumns: tournament.status === 'draft' ? '2fr 1.2fr 1.5fr 80px' : '2fr 1.2fr 1.5fr' }}>
                               <div className="roster-item-info">
                                 <Avatar person={player} size="xs" />
                                 <div>
@@ -1659,7 +1703,6 @@ function OrganizerDashboard({ state, updateState, onLogout }) {
                                 </div>
                               </div>
                               <span className="roster-pos">{player.primary} / {player.secondary}</span>
-                              <span className="roster-style">{player.style}</span>
                               {tournament.status === 'draft' ? (
                                 isCap ? (
                                   <div className="captain-team-field" style={{ display: 'flex', alignItems: 'center' }}>
@@ -1831,15 +1874,19 @@ function PlayerCard({ player, rank, onRank, sold, soldClub, profileReady = true,
       <div className="player-card-head">
         <Avatar person={player} />
         <div><strong>{player.tag}</strong><span>{player.name}</span></div>
-        <span className="rating">{player.rating}</span>
       </div>
-      <div className="position-row"><b>{player.primary}</b><span>{player.secondary}</span><span>{player.style}</span></div>
+      <div className="position-row"><b>{player.primary}</b>{player.secondary && <span>{player.secondary}</span>}</div>
       <div className="trait-row">{(player.traits || []).map((trait) => <span key={trait}>{trait}</span>)}</div>
       {showProfileStatus && <div className={`profile-status ${profileReady ? 'ready' : 'pending'}`}>{profileReady ? 'Profile updated' : 'Profile pending'}</div>}
       {sold ? (
         <div className="rank-button sold-label"><ClubMark club={soldClub} size="xs" /><span>Drafted to</span><strong>{soldClub?.name || 'Another Team'}</strong></div>
       ) : (
-        <button className={`rank-button ${rank ? 'active' : ''}`} onClick={onRank} disabled={unavailable}>
+        <button 
+          className={`rank-button ${rank ? 'active' : ''}`} 
+          onClick={onRank} 
+          disabled={unavailable}
+          style={profileReady && !rank ? { boxShadow: '0 0 10px rgba(217, 255, 99, 0.25)', borderColor: 'var(--lime)', color: 'var(--lime)', fontWeight: 'bold' } : {}}
+        >
           {unavailable ? 'Waiting on profile' : rank ? <><span>#{rank}</span> Priority pick <X size={15} /></> : <><Target size={16} /> Shortlist</>}
         </button>
       )}
@@ -2004,7 +2051,7 @@ function SquadRoom({ user, state, updateState, goAuction, profileSetup }) {
             {[0, 1, 2].map((index) => {
               const player = state.players.find((item) => item.id === data.shortlist[index]);
               return player ? (
-                <div className="priority-item" key={player.id}><span>{index + 1}</span><Avatar person={player} size="xs" /><div><strong>{player.tag}</strong><small>{player.primary} · {player.style}</small></div></div>
+                <div className="priority-item" key={player.id}><span>{index + 1}</span><Avatar person={player} size="xs" /><div><strong>{player.tag}</strong><small>{player.primary}</small></div></div>
               ) : <div className="priority-empty" key={index}><span>{index + 1}</span> Pick a player below</div>;
             })}
           </div>
@@ -2074,7 +2121,7 @@ function VotingRoom({ user, state, updateState, onReset }) {
           return (
             <button className={`vote-card ${selected ? 'selected' : ''}`} key={player.id} onClick={() => castVote(player.id)}>
               <span className="vote-check">{selected ? <BadgeCheck size={21} /> : <span />}</span>
-              <Avatar person={player} size="lg" /><strong>{player.tag}</strong><small>{player.primary} · {player.style}</small>
+              <Avatar person={player} size="lg" /><strong>{player.tag}</strong><small>{player.primary}</small>
               <span className="vote-count"><UsersRound size={15} /> {voteCount} {voteCount === 1 ? 'vote' : 'votes'}</span>
             </button>
           );
@@ -2105,11 +2152,28 @@ function BiddingRoom({ user, state, updateState, onReset }) {
   const squadFull = squadSize(user.id, state.captainData[user.id]) >= teamSize;
   const canAfford = state.captainData[user.id].budget >= nextBid && !squadFull;
 
+  const [timeLeft, setTimeLeft] = useState(0);
+
+  useEffect(() => {
+    if (!auction.countdownEndTime) {
+      setTimeLeft(0);
+      return undefined;
+    }
+    const updateTime = () => {
+      const remaining = Math.max(0, Math.ceil((auction.countdownEndTime - Date.now()) / 1000));
+      setTimeLeft(remaining);
+    };
+    updateTime();
+    const interval = setInterval(updateTime, 250);
+    return () => clearInterval(interval);
+  }, [auction.countdownEndTime]);
+
   const bid = () => updateState((draft) => {
     const price = draft.auction.leaderId ? draft.auction.bid + 25 : 50;
     if (draft.captainData[user.id].budget < price) return;
     draft.auction.bid = price;
     draft.auction.leaderId = user.id;
+    draft.auction.countdownEndTime = null;
     draft.auction.history.unshift({ type: 'bid', text: `${state.captains.find((c) => c.id === user.id)?.handle || state.captains.find((c) => c.id === user.id)?.tag || ''} bid ${price}` });
   });
   const rivalBid = () => updateState((draft) => {
@@ -2164,7 +2228,7 @@ function BiddingRoom({ user, state, updateState, onReset }) {
           <span className="lot-label">Now on the block</span>
           <Avatar person={player} size="xl" />
           <h1>{player.tag}</h1><p>{player.name}</p>
-          <div className="lot-stats"><span><b>{player.rating}</b> OVR</span><span><b>{player.primary}</b> Position</span><span><b>{player.style}</b> Style</span></div>
+          <div className="lot-stats"><span><b>{player.primary}</b> Position</span></div>
           <div className="lot-traits">{player.traits.map((trait) => <span key={trait}><Zap size={13} /> {trait}</span>)}</div>
         </section>
         <section className="bid-console">
@@ -2173,6 +2237,11 @@ function BiddingRoom({ user, state, updateState, onReset }) {
           <div className={`leading-bid ${leader ? 'has-leader' : ''}`}>
             {leader ? <><ClubMark club={getClubInfo(leader)} size="xs" /><span><small>Leading bid</small><strong>{getClubInfo(leader).name}</strong></span></> : <><Clock3 size={19} /><span><small>Opening price</small><strong>Waiting for first bid</strong></span></>}
           </div>
+          {timeLeft > 0 && (
+            <div className="countdown-alert" style={{ background: '#ff3b30', color: '#fff', padding: '10px', borderRadius: '8px', textAlign: 'center', fontWeight: 'bold', fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '14px', animation: 'pulse 1s infinite' }}>
+              <Clock3 size={15} /> Closing in {timeLeft}s
+            </div>
+          )}
           <button className="bid-button" onClick={bid} disabled={!canAfford || auction.leaderId === user.id}>
             <span>Place bid</span><strong><Coins size={22} /> {nextBid}</strong>
           </button>
