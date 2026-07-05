@@ -430,6 +430,16 @@ const normalizeLoadedState = (saved) => {
 const money = (amount) => amount.toLocaleString();
 
 function Avatar({ person, size = 'md' }) {
+  if (person?.avatar) {
+    return (
+      <img
+        className={`avatar avatar-${size}`}
+        src={person.avatar}
+        alt={`${person.name || person.tag || 'User'}'s avatar`}
+        style={{ objectFit: 'cover' }}
+      />
+    );
+  }
   const color = person?.color || '#a1a8ff';
   const initials = person?.initials || '?';
   return (
@@ -1228,7 +1238,7 @@ function AppShell({ user, active, setActive, onLogout, onChangeTournament, child
       ...(profileSetup?.complete ? [['auction', 'Auction', Radio], ['tournament', 'Tournament', Swords]] : []),
       ['club', 'Club settings', Settings],
     ]
-    : [['profile', 'My profile', CircleUserRound], ['pool', 'Player pool', UsersRound]];
+    : [['profile', 'Profile', CircleUserRound], ['pool', 'Players', UsersRound]];
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
@@ -1967,27 +1977,84 @@ function PlayerProfile({ user, state, updateState, showPool }) {
     setForm(updatedProfile);
     setSaved(true); setTimeout(() => setSaved(false), 1800);
   };
+
+  const uploadAvatar = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      alert('Please choose an image smaller than 2 MB.');
+      event.target.value = '';
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_SIZE = 256;
+        let width = img.width;
+        let height = img.height;
+        if (width > height) {
+          if (width > MAX_SIZE) {
+            height = Math.round((height * MAX_SIZE) / width);
+            width = MAX_SIZE;
+          }
+        } else {
+          if (height > MAX_SIZE) {
+            width = Math.round((width * MAX_SIZE) / height);
+            height = MAX_SIZE;
+          }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+        setField('avatar', dataUrl);
+        setSaved(false);
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  };
+
   return (
     <>
       <header className="page-header"><div><span className="page-kicker">Player profile setup</span><h1>Make your case.</h1><p>Captains can shortlist you after this card is saved.</p></div><span className={`status-pill ${isPlayerProfileReady(form) ? 'good' : ''}`}><BadgeCheck size={14} /> {isPlayerProfileReady(form) ? 'Profile updated' : 'Needs update'}</span></header>
       <div className="profile-layout">
         <section className="panel profile-form">
           <div className="panel-head"><div><span className="section-step">01</span><h2>Your player profile</h2></div><Pencil size={18} /></div>
-          <div className="profile-avatar-row"><Avatar person={form} size="xl" /><div><strong>{form.tag}</strong><span>{form.name}</span><small>Profile color and initials are assigned for this demo.</small></div></div>
+          
+          <div className="profile-avatar-row">
+            <Avatar person={form} size="xl" />
+            <div>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <label className="secondary club-upload-button" htmlFor="player-avatar-upload" style={{ margin: 0, padding: '6px 12px', fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                  <Upload size={14} /> Upload photo
+                </label>
+                <input id="player-avatar-upload" type="file" accept="image/png,image/jpeg,image/webp" onChange={uploadAvatar} style={{ display: 'none' }} />
+                {form.avatar && (
+                  <button className="ghost btn-danger icon-only" title="Remove photo" onClick={() => { setField('avatar', null); setSaved(false); }} style={{ padding: '6px' }}>
+                    <Trash2 size={14} />
+                  </button>
+                )}
+              </div>
+              <small style={{ marginTop: '6px', color: 'var(--muted)', fontSize: '9px', display: 'block' }}>PNG, JPG or WebP. Auto-resized to square.</small>
+            </div>
+          </div>
+
           <div className="form-grid">
-            <label><span>Display name</span><input value={form.name} onChange={(e) => setField('name', e.target.value)} /></label>
-            <label><span>FC gamertag</span><input value={form.tag} onChange={(e) => setField('tag', e.target.value)} /></label>
+            <label><span>Name</span><input value={form.name} onChange={(e) => setField('name', e.target.value)} /></label>
+            <label><span>Gamertag</span><input value={form.tag} onChange={(e) => setField('tag', e.target.value)} /></label>
             <label><span>Primary position</span><select value={form.primary} onChange={(e) => setField('primary', e.target.value)}>{POSITIONS.map((p) => <option key={p}>{p}</option>)}</select></label>
             <label><span>Secondary position</span><select value={form.secondary} onChange={(e) => setField('secondary', e.target.value)}>{POSITIONS.map((p) => <option key={p}>{p}</option>)}</select></label>
-            <label className="span-two"><span>Play style</span><select value={form.style} onChange={(e) => setField('style', e.target.value)}>{['Creator','Finisher','Anchor','Dribbler','Sweeper','Engine','Winger','Stopper','Playmaker','Utility','Ball winner','Poacher'].map((p) => <option key={p}>{p}</option>)}</select></label>
           </div>
-          <button className="primary" onClick={save}>{saved ? <><BadgeCheck size={18} /> Saved to pool</> : <>Save player card <ArrowRight size={18} /></>}</button>
+          <button className="primary" onClick={save}>{saved ? <><BadgeCheck size={18} /> Saved</> : <>Save <ArrowRight size={18} /></>}</button>
         </section>
         <aside className="profile-preview">
           <span className="section-step">02</span><h2>Captain preview</h2><p>This is how you appear on every draft board.</p>
           <PlayerCard player={form} rank={0} onRank={() => {}} />
           <div className="profile-tip"><Sparkles size={18} /><span><strong>Quick tip</strong>Flexible positions make you easier to fit into more formations.</span></div>
-          <button className="secondary full" onClick={showPool}><UsersRound size={17} /> See the full player pool</button>
         </aside>
       </div>
     </>
