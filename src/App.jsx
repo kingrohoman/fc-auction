@@ -480,7 +480,7 @@ function Brand() {
   return (
     <div className="brand">
       <span className="brand-mark"><Goal size={21} strokeWidth={2.3} /></span>
-      <span>CLUB<span>HOUSE</span></span>
+      <span>TOURNAMENT<span>HQ</span></span>
     </div>
   );
 }
@@ -540,7 +540,7 @@ function Login({ onLogin, players, captains }) {
         <div className="login-card-top">
           <div>
             <span className="step-label">Demo access</span>
-            <h2>Enter the clubhouse</h2>
+            <h2>Enter Tournament HQ</h2>
           </div>
           <span className="secure-badge"><Shield size={14} /> Private lobby</span>
         </div>
