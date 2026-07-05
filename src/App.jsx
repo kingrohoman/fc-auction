@@ -1459,6 +1459,89 @@ function OrganizerDashboard({ state, updateState, onLogout, tournamentState, upd
     });
   };
 
+  const simulateAuction = () => {
+    const required = Number(tournament.captainCount || 4);
+    const current = tournament.captains?.length || 0;
+    if (current !== required) {
+      alert(`Please select exactly ${required} captains from the roster first. (Currently: ${current} selected)`);
+      return;
+    }
+    if (!window.confirm("This will auto-draft all registered players to the captains' squads, schedule the double round-robin fixtures, and complete the auction phase. Continue?")) return;
+
+    updateState((draft) => {
+      const tourId = tournament.id;
+      const target = draft.tournaments.find((item) => item.id === tourId);
+      if (target) target.status = 'active';
+
+      const tCapData = draft.tournamentCaptainData[tourId] || {};
+      tournament.captains.forEach((cap) => {
+        tCapData[cap.id] = {
+          formation: '4-3-3',
+          shortlist: [],
+          budget: tournament.budget,
+          squad: [],
+          lineup: { GK: `captain:${cap.id}` },
+          squadConfirmed: true
+        };
+      });
+      draft.tournamentCaptainData[tourId] = tCapData;
+
+      const tPlayerIds = draft.tournamentPlayerIds[tourId] || [];
+      const eligible = tPlayerIds.filter((pid) => !tournament.captains.some((cap) => cap.id === pid));
+      const shuffled = [...eligible].sort(() => Math.random() - 0.5);
+
+      const teamSizeLimit = tournament.teamSize || 11;
+      let capIndex = 0;
+      
+      shuffled.forEach((pid) => {
+        let attempts = 0;
+        while (attempts < tournament.captains.length) {
+          const cap = tournament.captains[capIndex];
+          const capData = tCapData[cap.id];
+          const filled = 1 + new Set((capData.squad || []).filter((id) => id !== cap.id)).size;
+          if (filled < teamSizeLimit) {
+            capData.squad.push(pid);
+            const cost = Math.min(capData.budget - 25, Math.floor(Math.random() * 4 + 2) * 25);
+            capData.budget = Math.max(0, capData.budget - cost);
+            
+            const positions = ['CB', 'LB', 'RB', 'CM', 'LM', 'RM', 'ST', 'LW', 'RW'];
+            const assignedPositions = Object.keys(capData.lineup);
+            const nextPos = positions.find((pos) => !assignedPositions.includes(pos));
+            if (nextPos) {
+              capData.lineup[nextPos] = pid;
+            }
+
+            capIndex = (capIndex + 1) % tournament.captains.length;
+            break;
+          }
+          capIndex = (capIndex + 1) % tournament.captains.length;
+          attempts++;
+        }
+      });
+
+      draft.tournamentAuctions[tourId] = {
+        phase: 'complete',
+        votes: {},
+        playerId: null,
+        bid: 0,
+        leaderId: null,
+        history: [{ type: 'complete', text: 'Auction completed via Organizer Simulation' }],
+        order: [],
+        countdownEndTime: null,
+        lastBidTime: 0
+      };
+
+      const capIds = tournament.captains.map((cap) => cap.id);
+      if (!draft.tournamentCompetitions[tourId]) {
+        draft.tournamentCompetitions[tourId] = createCompetition();
+      }
+      draft.tournamentCompetitions[tourId].phase = 'league';
+      draft.tournamentCompetitions[tourId].matches = createLeagueFixtures(capIds);
+      draft.tournamentCompetitions[tourId].playerStats = [];
+    });
+    setOrgTab('tournament');
+  };
+
   const readyAllPlayerProfiles = () => {
     updateState((draft) => {
       const ids = new Set(draft.tournamentPlayerIds[tournament.id] || []);
@@ -1632,9 +1715,17 @@ function OrganizerDashboard({ state, updateState, onLogout, tournamentState, upd
                 </div>
                 <div className="control-actions">
                   {tournament.status === 'draft' ? (
-                    <button className="primary" onClick={startTournament}><Play size={17} /> Start tournament</button>
+                    <>
+                      <button className="primary" onClick={startTournament}><Play size={17} /> Start tournament</button>
+                      <button className="secondary" onClick={simulateAuction}><Sparkles size={17} /> Auto-draft &amp; Start Tournament</button>
+                    </>
                   ) : (
-                    <button className="secondary" onClick={resetTournament}><RotateCcw size={17} /> Reset to Draft</button>
+                    <>
+                      <button className="secondary" onClick={resetTournament}><RotateCcw size={17} /> Reset to Draft</button>
+                      {tournamentState?.auction?.phase !== 'complete' && (
+                        <button className="secondary" onClick={simulateAuction}><Sparkles size={17} /> Auto-draft &amp; Complete Auction</button>
+                      )}
+                    </>
                   )}
                   <button className="secondary icon-only" title="Edit competition details" onClick={startEditing}>
                     <Settings size={17} />
