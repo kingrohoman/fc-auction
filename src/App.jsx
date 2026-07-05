@@ -1655,6 +1655,11 @@ function OrganizerDashboard({ state, updateState, onLogout }) {
                       <p>{tournamentPlayers.length} players currently registered in this competition.</p>
                     </div>
                     <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      {tournamentPlayers.some(p => !isPlayerProfileReady(p)) && (
+                        <button className="secondary" onClick={readyAllPlayerProfiles}>
+                          <BadgeCheck size={15} /> Ready All Profiles
+                        </button>
+                      )}
                       {tournament.status === 'draft' ? (
                         <button className="secondary" onClick={() => setShowAddPlayer(!showAddPlayer)}>{showAddPlayer ? <X size={15} /> : <UserPlus size={15} />} {showAddPlayer ? 'Cancel' : 'Add Player'}</button>
                       ) : (
@@ -1877,7 +1882,7 @@ function PlayerCard({ player, rank, onRank, sold, soldClub, profileReady = true,
       </div>
       <div className="position-row"><b>{player.primary}</b>{player.secondary && <span>{player.secondary}</span>}</div>
       <div className="trait-row">{(player.traits || []).map((trait) => <span key={trait}>{trait}</span>)}</div>
-      {showProfileStatus && <div className={`profile-status ${profileReady ? 'ready' : 'pending'}`}>{profileReady ? 'Profile updated' : 'Profile pending'}</div>}
+
       {sold ? (
         <div className="rank-button sold-label"><ClubMark club={soldClub} size="xs" /><span>Drafted to</span><strong>{soldClub?.name || 'Another Team'}</strong></div>
       ) : (
@@ -2065,7 +2070,7 @@ function SquadRoom({ user, state, updateState, goAuction, profileSetup }) {
           <div className="filter-pills">{['All', 'ST', 'CAM', 'CM', 'CDM', 'CB', 'GK'].map((item) => <button key={item} className={position === item ? 'active' : ''} onClick={() => setPosition(item)}>{item}</button>)}</div>
         </div>
         <div className="player-grid">
-          {filtered.map((player) => <PlayerCard key={player.id} player={player} sold={soldIds.includes(player.id)} soldClub={getPurchaserClub(player.id)} rank={data.shortlist.indexOf(player.id) + 1 || 0} onRank={() => toggleShortlist(player.id)} profileReady={isPlayerProfileReady(player)} showProfileStatus />)}
+          {filtered.map((player) => <PlayerCard key={player.id} player={player} sold={soldIds.includes(player.id)} soldClub={getPurchaserClub(player.id)} rank={data.shortlist.indexOf(player.id) + 1 || 0} onRank={() => toggleShortlist(player.id)} profileReady={isPlayerProfileReady(player)} />)}
         </div>
       </section>
     </>
