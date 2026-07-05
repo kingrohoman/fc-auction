@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ArrowRight,
   BadgeCheck,
@@ -40,43 +40,8 @@ import {
 } from 'lucide-react';
 
 const STORAGE_KEY = 'clubhouse-fc26-v1';
-const SYNC_CHANNEL_KEY = 'clubhouse-fc26-live';
 
 const POSITIONS = ['GK', 'CB', 'LB', 'RB', 'CDM', 'CM', 'CAM', 'LM', 'RM', 'LW', 'RW', 'ST'];
-
-const PHASES = {
-  DRAFT: 'draft_setup',
-  REGISTRATION: 'registration_open',
-  CAPTAINS: 'captain_selection',
-  AUCTION: 'auction_live',
-  SQUADS: 'squad_confirmation',
-  TOURNAMENT: 'tournament_live',
-  COMPLETE: 'complete',
-};
-
-const phaseLabels = {
-  [PHASES.DRAFT]: 'Draft setup',
-  [PHASES.REGISTRATION]: 'Registration open',
-  [PHASES.CAPTAINS]: 'Captain selection',
-  [PHASES.AUCTION]: 'Auction live',
-  [PHASES.SQUADS]: 'Squad confirmation',
-  [PHASES.TOURNAMENT]: 'Tournament live',
-  [PHASES.COMPLETE]: 'Complete',
-};
-
-const phaseOrder = Object.values(PHASES);
-const getTournamentPhase = (tournament) => (
-  phaseOrder.includes(tournament?.phase)
-    ? tournament.phase
-    : tournament?.status === 'active'
-      ? PHASES.AUCTION
-      : PHASES.DRAFT
-);
-const phaseLabel = (phase) => phaseLabels[phase] || phaseLabels[PHASES.DRAFT];
-const setTournamentPhase = (tournament, phase) => {
-  tournament.phase = phase;
-  tournament.status = phase === PHASES.DRAFT ? 'draft' : phase === PHASES.COMPLETE ? 'complete' : 'active';
-};
 
 const captains = [
   { id: 'cap-tariq', name: 'Tariq', handle: 'Rohoman', team: 'North Stars', color: '#d9ff63', initials: 'TR' },
@@ -85,20 +50,22 @@ const captains = [
   { id: 'cap-sami', name: 'Sami', handle: 'S4MI', team: 'Atlas FC', color: '#b69cff', initials: 'SA' },
 ];
 
-const seedPlayers = [
-  { id: 'p-rafi', name: 'Rafi Ahmed', tag: 'Rafi10', initials: 'RA', primary: 'CAM', secondary: 'ST', rating: 91, style: 'Creator', traits: ['Vision', 'Quick pass'], availability: 'Confirmed', color: '#ffb96e' },
-  { id: 'p-zayed', name: 'Zayed Khan', tag: 'ZK7', initials: 'ZK', primary: 'ST', secondary: 'RW', rating: 89, style: 'Finisher', traits: ['Clinical', 'Pressing'], availability: 'Confirmed', color: '#67e8c2' },
-  { id: 'p-nabil', name: 'Nabil Chowdhury', tag: 'Nabs', initials: 'NC', primary: 'CB', secondary: 'CDM', rating: 88, style: 'Anchor', traits: ['Tackling', 'Calm'], availability: 'Confirmed', color: '#77b7ff' },
-  { id: 'p-adnan', name: 'Adnan Malik', tag: 'AD9', initials: 'AM', primary: 'LW', secondary: 'CAM', rating: 87, style: 'Dribbler', traits: ['Skill moves', 'Agility'], availability: 'Confirmed', color: '#e6a5ff' },
-  { id: 'p-fahim', name: 'Fahim Rahman', tag: 'FahimFifa', initials: 'FR', primary: 'GK', secondary: 'CB', rating: 86, style: 'Sweeper', traits: ['Reflexes', 'Distribution'], availability: 'Confirmed', color: '#ffd964' },
-  { id: 'p-shah', name: 'Shah Islam', tag: 'NoLookShah', initials: 'SI', primary: 'CM', secondary: 'CDM', rating: 85, style: 'Engine', traits: ['Stamina', 'Long pass'], availability: 'Confirmed', color: '#fa8eac' },
-  { id: 'p-ayaan', name: 'Ayaan Ali', tag: 'Ayaan11', initials: 'AA', primary: 'RW', secondary: 'ST', rating: 84, style: 'Winger', traits: ['Pace', 'Crossing'], availability: 'Confirmed', color: '#8ae6ff' },
-  { id: 'p-hamza', name: 'Hamza Noor', tag: 'Hamzi', initials: 'HN', primary: 'CB', secondary: 'GK', rating: 83, style: 'Stopper', traits: ['Strength', 'Blocks'], availability: 'Confirmed', color: '#a6f18a' },
-  { id: 'p-rayan', name: 'Rayan Hussain', tag: 'Ray', initials: 'RH', primary: 'CM', secondary: 'CAM', rating: 82, style: 'Playmaker', traits: ['Composure', 'Passing'], availability: 'Pending', color: '#f4a273' },
-  { id: 'p-omar', name: 'Omar Syed', tag: 'OMR', initials: 'OS', primary: 'LB', secondary: 'CB', rating: 80, style: 'Utility', traits: ['Recovery', 'Team first'], availability: 'Confirmed', color: '#a1a8ff' },
-  { id: 'p-junaid', name: 'Junaid Hasan', tag: 'JH21', initials: 'JH', primary: 'CDM', secondary: 'CB', rating: 79, style: 'Ball winner', traits: ['Interceptions', 'Safe pass'], availability: 'Confirmed', color: '#67d7c4' },
-  { id: 'p-kabir', name: 'Kabir Ahmed', tag: 'Kabs', initials: 'KA', primary: 'ST', secondary: 'CAM', rating: 78, style: 'Poacher', traits: ['Positioning', 'One touch'], availability: 'Confirmed', color: '#ff8b77' },
-];
+const legacySeedPlayerIds = new Set([
+  'p-rafi',
+  'p-zayed',
+  'p-nabil',
+  'p-adnan',
+  'p-fahim',
+  'p-shah',
+  'p-ayaan',
+  'p-hamza',
+  'p-rayan',
+  'p-omar',
+  'p-junaid',
+  'p-kabir',
+]);
+
+const seedPlayers = [];
 
 const formations = {
   '4-3-3': [
@@ -253,7 +220,7 @@ const getFormationSet = (teamSize) => {
 };
 
 const seedTournaments = [
-  { id: 't-friday-night', name: 'Friday Night FC', date: '2026-06-26', time: '20:30', status: 'active', phase: PHASES.AUCTION, format: '11v11', captainCount: 4, budget: 1000, captains: captains.map((captain) => ({ ...captain, club: { name: captain.team, logo: null } })) },
+  { id: 't-friday-night', name: 'Friday Night FC', date: '2026-06-26', time: '20:30', status: 'active', format: '11v11', captainCount: 4, budget: 1000, captains: captains.map((captain) => ({ ...captain, club: { name: captain.team, logo: null } })) },
 ];
 
 const demoCaptainShortlists = {
@@ -292,23 +259,13 @@ const createCompetition = () => ({ phase: 'ready', readyCaptainIds: [], matches:
 const createLeagueFixtures = (teamIds) => {
   if (teamIds.length !== 4) return [];
   const [a, b, c, d] = teamIds;
-  const rounds = [
-    // Leg 1
-    [[a, d], [b, c]],
-    [[a, c], [d, b]],
-    [[a, b], [c, d]],
-    // Leg 2 (Reversed home/away)
-    [[d, a], [c, b]],
-    [[c, a], [b, d]],
-    [[b, a], [d, c]]
-  ];
+  const rounds = [[[a, d], [b, c]], [[a, c], [d, b]], [[a, b], [c, d]]];
   return rounds.flatMap((pairs, roundIndex) => pairs.map(([homeId, awayId], matchIndex) => ({
     id: `league-${roundIndex + 1}-${matchIndex + 1}`,
     stage: 'league', round: roundIndex + 1, label: `League · Round ${roundIndex + 1}`,
     homeId, awayId, status: 'pending', scheduledAt: '', homeScore: null, awayScore: null,
   })));
 };
-
 
 const calculateStandings = (tournamentCaptains, matches) => {
   const table = Object.fromEntries(tournamentCaptains.map((captain) => [captain.id, {
@@ -339,73 +296,70 @@ const suggestKickoffDate = () => {
   return localDate.toISOString().slice(0, 16);
 };
 
-const isProfileComplete = (player) => (
-  !!(player && player.profileComplete && player.name?.trim() && player.tag?.trim() && player.primary && player.secondary && player.style)
-);
-
-const getCaptainReadiness = (state, tournament) => {
-  const captainsList = tournament?.captains || [];
-  const captainData = state.tournamentCaptainData[tournament?.id] || {};
-  const teamSize = Number(tournament?.teamSize) || 11;
-  const soldIds = new Set(Object.values(captainData).flatMap((data) => data.squad || []));
-  
-  return captainsList.map((captain) => {
-    const data = captainData[captain.id] || { squad: [], shortlist: [] };
-    const filled = 1 + new Set((data.squad || []).filter((id) => id !== captain.id)).size;
-    const isFull = filled >= teamSize;
-    const validShortlist = (data.shortlist || []).filter((pId) => !soldIds.has(pId));
-    const isReady = isFull || validShortlist.length > 0;
-    
-    return {
-      id: captain.id,
-      name: captain.name,
-      handle: captain.handle || captain.tag,
-      isFull,
-      shortlistCount: validShortlist.length,
-      isReady
-    };
-  });
-};
-
-const getNextBidPrice = (currentBid, leaderId) => {
-  if (!leaderId) return 50;
-  if (currentBid >= 200) return currentBid + 100;
-  return currentBid + 50;
-};
-
-const getMaxAllowedBid = (budget, currentSquadCount, teamSize) => {
-  const playersNeededTotal = teamSize - currentSquadCount;
-  if (playersNeededTotal <= 1) {
-    return budget;
-  }
-  const reservedCoins = playersNeededTotal * 50;
-  return budget - reservedCoins;
-};
-
-
 const createDefaultState = () => ({
   players: seedPlayers,
-  captainData: createCaptainData(1000, true),
+  captainData: createCaptainData(1000, false),
   auction: createAuction(),
   tournaments: seedTournaments,
   tournamentPlayerIds: { 't-friday-night': seedPlayers.map((player) => player.id) },
-  tournamentCaptainData: { 't-friday-night': createCaptainData(1000, true) },
+  tournamentCaptainData: { 't-friday-night': createCaptainData(1000, false) },
   tournamentAuctions: { 't-friday-night': createAuction() },
   tournamentCompetitions: { 't-friday-night': createCompetition() },
   demoPicksVersion: 1,
-  _sync: { origin: 'seed', updatedAt: 0 },
 });
+
+const removeLegacySeedPlayerRefs = (value) => {
+  if (Array.isArray(value)) return value.filter((item) => !legacySeedPlayerIds.has(item));
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).filter(([, item]) => !legacySeedPlayerIds.has(item)));
+  }
+  return value;
+};
+
+const sanitizeCaptainData = (captainData = {}) => Object.fromEntries(Object.entries(captainData).map(([captainId, data]) => [
+  captainId,
+  {
+    ...data,
+    shortlist: removeLegacySeedPlayerRefs(data?.shortlist || []),
+    squad: removeLegacySeedPlayerRefs(data?.squad || []),
+    lineup: removeLegacySeedPlayerRefs(data?.lineup || {}),
+  },
+]));
+
+const sanitizeState = (state) => {
+  const cleaned = {
+    ...state,
+    players: (state.players || []).filter((player) => !legacySeedPlayerIds.has(player.id)),
+    captainData: sanitizeCaptainData(state.captainData),
+    tournamentPlayerIds: Object.fromEntries(Object.entries(state.tournamentPlayerIds || {}).map(([tournamentId, playerIds]) => [
+      tournamentId,
+      removeLegacySeedPlayerRefs(playerIds || []),
+    ])),
+    tournamentCaptainData: Object.fromEntries(Object.entries(state.tournamentCaptainData || {}).map(([tournamentId, captainData]) => [
+      tournamentId,
+      sanitizeCaptainData(captainData),
+    ])),
+  };
+
+  cleaned.tournamentAuctions = Object.fromEntries(Object.entries(state.tournamentAuctions || {}).map(([tournamentId, auction]) => [
+    tournamentId,
+    legacySeedPlayerIds.has(auction?.playerId) ? createAuction() : auction,
+  ]));
+
+  return cleaned;
+};
 
 function loadState() {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
     if (!saved?.players || !saved?.captainData || !saved?.auction) return createDefaultState();
     const base = createDefaultState();
-    const normalized = { ...base, ...saved, captainData: { ...base.captainData } };
-    const needsDemoPicks = saved.demoPicksVersion !== 1;
-    const soldPlayerIds = new Set(Object.values(saved.captainData).flatMap((data) => data.squad || []));
+    const cleanedSaved = sanitizeState(saved);
+    const normalized = { ...base, ...cleanedSaved, captainData: { ...base.captainData } };
+    const needsDemoPicks = false;
+    const soldPlayerIds = new Set(Object.values(cleanedSaved.captainData).flatMap((data) => data.squad || []));
     captains.forEach((captain) => {
-      const prior = saved.captainData[captain.id] || {};
+      const prior = cleanedSaved.captainData[captain.id] || {};
       const formation = formations[prior.formation] ? prior.formation : '4-3-3';
       const activeSpots = new Set(formations[formation].map((spot) => spot.id));
       const lineup = Object.fromEntries(Object.entries(prior.lineup || {}).filter(([spotId]) => activeSpots.has(spotId)));
@@ -416,19 +370,13 @@ function loadState() {
       normalized.captainData[captain.id] = { ...base.captainData[captain.id], ...prior, formation, lineup, shortlist };
     });
     normalized.demoPicksVersion = 1;
-    normalized.tournaments = saved.tournaments?.length ? saved.tournaments : seedTournaments;
-    normalized.tournamentPlayerIds = saved.tournamentPlayerIds || { 't-friday-night': normalized.players.map((player) => player.id) };
-    normalized.tournamentCaptainData = saved.tournamentCaptainData || { 't-friday-night': normalized.captainData };
-    normalized.tournamentAuctions = saved.tournamentAuctions || { 't-friday-night': normalized.auction };
-    normalized.tournamentCompetitions = saved.tournamentCompetitions || { 't-friday-night': createCompetition() };
+    normalized.tournaments = cleanedSaved.tournaments?.length ? cleanedSaved.tournaments : seedTournaments;
+    normalized.tournamentPlayerIds = cleanedSaved.tournamentPlayerIds || { 't-friday-night': normalized.players.map((player) => player.id) };
+    normalized.tournamentCaptainData = cleanedSaved.tournamentCaptainData || { 't-friday-night': normalized.captainData };
+    normalized.tournamentAuctions = cleanedSaved.tournamentAuctions || { 't-friday-night': normalized.auction };
+    normalized.tournamentCompetitions = cleanedSaved.tournamentCompetitions || { 't-friday-night': createCompetition() };
     normalized.tournaments.forEach((tournament) => {
       if (tournament.id === 't-friday-night' && !tournament.captains) tournament.captains = captains.map((captain) => ({ ...captain }));
-      if (!phaseOrder.includes(tournament.phase)) {
-        const competition = normalized.tournamentCompetitions?.[tournament.id];
-        if (tournament.status === 'active' && competition?.phase && competition.phase !== 'ready') tournament.phase = PHASES.TOURNAMENT;
-        else tournament.phase = tournament.status === 'active' ? PHASES.AUCTION : PHASES.DRAFT;
-      }
-      tournament.captainCount = 4;
       if (tournament.captains) {
         tournament.captains = tournament.captains.map((captain) => ({
           ...captain,
@@ -440,16 +388,13 @@ function loadState() {
       if (!normalized.tournamentAuctions[tournament.id]) normalized.tournamentAuctions[tournament.id] = createAuction();
       if (!normalized.tournamentCompetitions[tournament.id]) normalized.tournamentCompetitions[tournament.id] = createCompetition();
     });
-    normalized._sync = saved._sync || { origin: 'legacy', updatedAt: Date.now() };
     return normalized;
   } catch {
     return createDefaultState();
   }
 }
 
-const money = (amount) => (amount != null ? amount.toLocaleString() : '0');
-
-const roleThemeClass = (role = 'player') => `role-theme role-theme-${role}`;
+const money = (amount) => amount.toLocaleString();
 
 function Avatar({ person, size = 'md' }) {
   const color = person?.color || '#a1a8ff';
@@ -488,6 +433,8 @@ function Login({ onLogin, players, captains }) {
   const [role, setRole] = useState('captain');
   const [selected, setSelected] = useState('');
   const [playerSelected, setPlayerSelected] = useState(players[0]?.id || '');
+  const hasPlayers = players.length > 0;
+  const canEnter = role === 'organizer' || (role === 'captain' ? Boolean(selected) : Boolean(playerSelected));
 
   useEffect(() => {
     if (captains && captains.length > 0 && !selected) {
@@ -502,13 +449,16 @@ function Login({ onLogin, players, captains }) {
   }, [captains, role, selected]);
 
   useEffect(() => {
-    if (role === 'player' && players && players.length > 0 && !players.some((p) => p.id === playerSelected)) {
+    if (role === 'player' && hasPlayers && !players.some((player) => player.id === playerSelected)) {
       setPlayerSelected(players[0].id);
     }
-  }, [players, role, playerSelected]);
+    if (role === 'player' && !hasPlayers && playerSelected) {
+      setPlayerSelected('');
+    }
+  }, [hasPlayers, playerSelected, players, role]);
 
   return (
-    <main className={`login-page ${roleThemeClass(role)}`}>
+    <main className="login-page">
       <div className="login-glow login-glow-one" />
       <div className="login-glow login-glow-two" />
       <header className="login-header"><Brand /><span>FC 26 · Auction night</span></header>
@@ -538,42 +488,34 @@ function Login({ onLogin, players, captains }) {
         </div>
         {role === 'organizer' ? (
           <div className="organizer-login-note"><Shield size={21} /><span><strong>Tournament Director</strong><small>Create tournaments, open registration, and import player pools.</small></span></div>
-        ) : role === 'player' && players.length === 0 ? (
-          <div className="organizer-login-note" style={{ borderLeftColor: '#ffb96e' }}>
-            <UserRound size={21} style={{ color: '#ffb96e' }} />
-            <span>
-              <strong>No Registered Players</strong>
-              <small>Registration must be opened or players must be imported/created by the organizer.</small>
-            </span>
-          </div>
         ) : (
           <>
-            <label className="field-label">Choose your profile</label>
-            <div className="select-wrap">
-              <select
-                value={role === 'captain' ? selected : playerSelected}
-                onChange={(event) => role === 'captain' ? setSelected(event.target.value) : setPlayerSelected(event.target.value)}
-              >
-                {(role === 'captain' ? captains : players).map((person) => (
-                  <option key={person.id} value={person.id}>{person.name} · {person.handle || person.tag}</option>
-                ))}
-              </select>
-              <ChevronDown size={17} />
-            </div>
+            <label className="field-label">{role === 'captain' ? 'Choose your captain profile' : 'Choose your player profile'}</label>
+            {role === 'player' && !hasPlayers ? (
+              <div className="organizer-login-note"><UserPlus size={21} /><span><strong>No player profiles yet</strong><small>The organizer needs to add players to a roster before player login is available.</small></span></div>
+            ) : (
+              <div className="select-wrap">
+                <select
+                  value={role === 'captain' ? selected : playerSelected}
+                  onChange={(event) => role === 'captain' ? setSelected(event.target.value) : setPlayerSelected(event.target.value)}
+                >
+                  {(role === 'captain' ? captains : players).map((person) => (
+                    <option key={person.id} value={person.id}>{person.name} · {person.handle || person.tag}</option>
+                  ))}
+                </select>
+                <ChevronDown size={17} />
+              </div>
+            )}
           </>
         )}
-        <button 
-          className="primary full" 
-          disabled={role === 'player' && players.length === 0}
-          onClick={() => onLogin({ role, id: role === 'organizer' ? 'organizer' : role === 'captain' ? selected : playerSelected })}
-        >
+        <button className="primary full" disabled={!canEnter} onClick={() => onLogin({ role, id: role === 'organizer' ? 'organizer' : role === 'captain' ? selected : playerSelected })}>
           Enter as {role === 'organizer' ? 'organizer' : role} <ArrowRight size={18} />
         </button>
         <p className="login-note">No password needed in this prototype. Real authentication comes with the shared backend.</p>
       </section>
       <footer className="login-footer">
         <span><span className="live-dot" /> Lobby opens Friday · 8:30 PM</span>
-        <span>4 captains · 12 players · 1 champion</span>
+        <span>Organizer-managed roster · 1 champion</span>
       </footer>
     </main>
   );
@@ -632,37 +574,28 @@ function parseCsv(text) {
   return rows.slice(1).map((values) => Object.fromEntries(headers.map((header, index) => [header, values[index] || '']))).filter((item) => item.name || item.full_name || item.gamertag || item.tag);
 }
 
-function TournamentSelector({ user, state, onSelect, onRegister, onLogout }) {
+function TournamentSelector({ user, state, onSelect, onLogout }) {
   return (
-    <main className={`tournament-select-page ${roleThemeClass(user.role)}`}>
+    <main className="tournament-select-page">
       <header className="standalone-header"><Brand /><button className="ghost" onClick={onLogout}><LogOut size={16} /> Sign out</button></header>
       <section className="selector-heading"><span className="page-kicker">Step 02 · Tournament access</span><h1>Choose your competition.</h1><p>Your profile stays the same. Each tournament has its own player pool, squads, budgets, and auction.</p></section>
       <div className="tournament-card-grid">
         {state.tournaments.map((tournament) => {
           const playerIds = state.tournamentPlayerIds[tournament.id] || [];
-          const phase = getTournamentPhase(tournament);
+          const started = tournament.status === 'active';
           const tourCaptains = tournament.captains || (tournament.id === 't-friday-night' ? captains : []);
           const isCaptain = tourCaptains.some((c) => c.id === user.id);
           const isPlayer = playerIds.includes(user.id);
-          const registrationOpen = phase === PHASES.REGISTRATION;
-          const captainAccess = isCaptain && phaseOrder.indexOf(phase) >= phaseOrder.indexOf(PHASES.CAPTAINS);
-          const playerAccess = isPlayer && phase !== PHASES.DRAFT;
-          const eligible = user.role === 'captain' ? captainAccess : playerAccess;
+          const eligible = user.role === 'captain' ? isCaptain : isPlayer;
           return (
-            <article className={`tournament-select-card ${eligible || registrationOpen ? 'available' : ''}`} key={tournament.id}>
-              <div className="tournament-card-top"><span className={`tournament-status ${phase}`}>{phase === PHASES.AUCTION ? <><span className="live-dot" /> {phaseLabel(phase)}</> : phaseLabel(phase)}</span><Trophy size={23} /></div>
+            <article className={`tournament-select-card ${started && eligible ? 'available' : ''}`} key={tournament.id}>
+              <div className="tournament-card-top"><span className={`tournament-status ${tournament.status}`}>{started ? <><span className="live-dot" /> Started</> : 'Draft'}</span><Trophy size={23} /></div>
               <h2>{tournament.name}</h2>
               <div className="tournament-meta"><span><CalendarDays size={14} /> {new Date(`${tournament.date}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span><span><UsersRound size={14} /> {playerIds.length} players</span></div>
               <div className="tournament-rules"><span>{tournament.format}</span><span>{tournament.captainCount} captains</span><span>{money(tournament.budget)} coins</span></div>
-              {user.role === 'player' && registrationOpen && !isPlayer ? (
-                <button className="primary full" onClick={() => onRegister(tournament.id)}>
-                  Register for tournament <ArrowRight size={17} />
-                </button>
-              ) : (
-                <button className="primary full" disabled={!eligible} onClick={() => onSelect(tournament.id)}>
-                  {eligible ? <>Select tournament <ArrowRight size={17} /></> : user.role === 'captain' ? 'Not a captain in this tournament' : phase === PHASES.DRAFT ? 'Registration not open' : 'Not registered in this pool'}
-                </button>
-              )}
+              <button className="primary full" disabled={!started || !eligible} onClick={() => onSelect(tournament.id)}>
+                {!started ? 'Not started' : eligible ? <>Select tournament <ArrowRight size={17} /></> : user.role === 'captain' ? 'Not a captain in this tournament' : 'Not registered in this pool'}
+              </button>
             </article>
           );
         })}
@@ -687,10 +620,6 @@ function OrganizerDashboard({ state, updateState, onLogout }) {
   const [orgTab, setOrgTab] = useState('roster');
 
   const tournament = state.tournaments.find((item) => item.id === selectedId) || state.tournaments[0];
-  const phase = getTournamentPhase(tournament);
-  const canEditRules = phase === PHASES.DRAFT;
-  const canManageRoster = [PHASES.DRAFT, PHASES.REGISTRATION].includes(phase);
-  const canSelectCaptains = phase === PHASES.CAPTAINS;
   const playerIds = state.tournamentPlayerIds[tournament?.id] || [];
   const tournamentPlayers = state.players.filter((player) => playerIds.includes(player.id));
 
@@ -698,20 +627,18 @@ function OrganizerDashboard({ state, updateState, onLogout }) {
     if (!form.name.trim()) return;
     const id = `t-${form.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}-${Date.now().toString(36)}`;
     const teamSize = Number(form.teamSize);
-    const captainCount = 4;
-    const totalPlayers = captainCount * teamSize;
+    const totalPlayers = Number(form.captainCount) * teamSize;
     updateState((draft) => {
       draft.tournaments.push({
         name: form.name,
         date: form.date,
         totalPlayers: totalPlayers,
         teamSize: teamSize,
-        captainCount,
+        captainCount: Number(form.captainCount),
         budget: Number(form.budget),
         id,
         format: `${teamSize}v${teamSize}`,
         status: 'draft',
-        phase: PHASES.DRAFT,
         captains: []
       });
       draft.tournamentPlayerIds[id] = [];
@@ -724,28 +651,11 @@ function OrganizerDashboard({ state, updateState, onLogout }) {
 
   const deleteTournament = (id) => {
     updateState((draft) => {
-      const playersInDeletedTour = draft.tournamentPlayerIds[id] || [];
-      
-      // Filter out this tournament
       draft.tournaments = draft.tournaments.filter((item) => item.id !== id);
       delete draft.tournamentPlayerIds[id];
       delete draft.tournamentCaptainData[id];
       delete draft.tournamentAuctions[id];
       delete draft.tournamentCompetitions[id];
-      
-      // Find all player IDs that are still registered in at least one remaining tournament
-      const remainingRegisteredPlayerIds = new Set(
-        Object.entries(draft.tournamentPlayerIds)
-          .filter(([tourId]) => tourId !== id)
-          .flatMap(([, playerIds]) => playerIds || [])
-      );
-      
-      // Delete players who were only in the deleted tournament and are not in remainingRegisteredPlayerIds
-      const playerIdsToRemove = playersInDeletedTour.filter(pId => !remainingRegisteredPlayerIds.has(pId));
-      if (playerIdsToRemove.length > 0) {
-        const removeSet = new Set(playerIdsToRemove);
-        draft.players = draft.players.filter(p => !removeSet.has(p.id));
-      }
     });
     const remaining = state.tournaments.filter((item) => item.id !== id);
     if (remaining.length > 0) {
@@ -762,7 +672,7 @@ function OrganizerDashboard({ state, updateState, onLogout }) {
     updateState((draft) => {
       const target = draft.tournaments.find((item) => item.id === tournament.id);
       if (target) {
-        setTournamentPhase(target, PHASES.DRAFT);
+        target.status = 'draft';
         target.time = ''; // Clear start time on reset
         target.captains = []; // Clear custom captains on reset
       }
@@ -781,7 +691,7 @@ function OrganizerDashboard({ state, updateState, onLogout }) {
       name: tournament.name,
       date: tournament.date,
       teamSize: defaultTeamSize,
-      captainCount: 4,
+      captainCount: tournament.captainCount,
       budget: tournament.budget
     });
     setIsEditing(true);
@@ -790,17 +700,16 @@ function OrganizerDashboard({ state, updateState, onLogout }) {
   const saveEdit = () => {
     if (!editForm.name.trim()) return;
     const teamSize = Number(editForm.teamSize);
-    const captainCount = 4;
-    const totalPlayers = captainCount * teamSize;
+    const totalPlayers = Number(editForm.captainCount) * teamSize;
     updateState((draft) => {
       const target = draft.tournaments.find((item) => item.id === tournament.id);
       if (target) {
         target.name = editForm.name;
         target.date = editForm.date;
-        if (getTournamentPhase(target) === PHASES.DRAFT) {
+        if (target.status === 'draft') {
           target.totalPlayers = totalPlayers;
           target.teamSize = teamSize;
-          target.captainCount = captainCount;
+          target.captainCount = Number(editForm.captainCount);
           target.budget = Number(editForm.budget);
           target.format = `${teamSize}v${teamSize}`;
           target.captains = [];
@@ -825,11 +734,6 @@ function OrganizerDashboard({ state, updateState, onLogout }) {
   };
 
   const toggleCaptain = (player) => {
-    const isCap = tournament.captains?.some((c) => c.id === player.id);
-    if (!isCap && !isProfileComplete(player)) {
-      alert(`Cannot promote ${player.name} (${player.tag}) to captain. Their profile is incomplete.`);
-      return;
-    }
     updateState((draft) => {
       const target = draft.tournaments.find((item) => item.id === tournament.id);
       if (!target) return;
@@ -939,40 +843,7 @@ function OrganizerDashboard({ state, updateState, onLogout }) {
     setShowAddPlayer(false);
   };
 
-  const openRegistration = () => {
-    updateState((draft) => {
-      const target = draft.tournaments.find((item) => item.id === tournament.id);
-      if (target) setTournamentPhase(target, PHASES.REGISTRATION);
-    });
-    setOrgTab('roster');
-  };
-
-  const lockRegistration = () => {
-    const required = Number(tournament.captainCount || 4);
-    if (tournamentPlayers.length < required) {
-      alert(`Register at least ${required} players before selecting captains. (${tournamentPlayers.length} registered)`);
-      return;
-    }
-
-    // Check if any registered player has an incomplete profile
-    const incompletePlayers = tournamentPlayers.filter(p => !isProfileComplete(p));
-    if (incompletePlayers.length > 0) {
-      const confirmLock = window.confirm(
-        `Warning: ${incompletePlayers.length} player(s) have not completed their profiles:\n` +
-        incompletePlayers.map(p => `- ${p.tag || p.name}`).join('\n') +
-        `\n\nDo you want to lock registration anyway?`
-      );
-      if (!confirmLock) return;
-    }
-    
-    updateState((draft) => {
-      const target = draft.tournaments.find((item) => item.id === tournament.id);
-      if (target) setTournamentPhase(target, PHASES.CAPTAINS);
-    });
-    setOrgTab('roster');
-  };
-
-  const startAuction = () => {
+  const startTournament = () => {
     const required = Number(tournament.captainCount || 4);
     const current = tournament.captains?.length || 0;
     if (current !== required) {
@@ -981,226 +852,9 @@ function OrganizerDashboard({ state, updateState, onLogout }) {
     }
     updateState((draft) => {
       const target = draft.tournaments.find((item) => item.id === tournament.id);
-      if (target) setTournamentPhase(target, PHASES.AUCTION);
-      draft.tournamentAuctions[tournament.id] = createAuction();
+      if (target) target.status = 'active';
     });
   };
-
-  const simulateInstantDraft = () => {
-    updateState((draft) => {
-      const target = draft.tournaments.find((item) => item.id === tournament.id);
-      if (!target) return;
-      const captainList = target.captains || [];
-      if (captainList.length < 4) {
-        alert("Please select captains first.");
-        return;
-      }
-      
-      const teamSize = getTournamentTeamSize(target);
-      const capData = draft.tournamentCaptainData[tournament.id] || {};
-      const playerIds = draft.tournamentPlayerIds[tournament.id] || [];
-      
-      const captainIds = new Set(captainList.map((c) => c.id));
-      const draftablePlayers = playerIds.filter((pId) => !captainIds.has(pId));
-      
-      captainList.forEach((captain) => {
-        if (!capData[captain.id]) {
-          capData[captain.id] = {
-            formation: '4-3-3',
-            shortlist: [],
-            budget: target.budget || 1000,
-            squad: [],
-            lineup: { GK: `captain:${captain.id}` },
-            squadConfirmed: false
-          };
-        } else {
-          capData[captain.id].squad = [];
-          capData[captain.id].budget = target.budget || 1000;
-          capData[captain.id].lineup = { GK: `captain:${captain.id}` };
-          capData[captain.id].squadConfirmed = false;
-        }
-      });
-      
-      let playerIndex = 0;
-      for (let i = 1; i < teamSize; i++) {
-        captainList.forEach((captain) => {
-          if (playerIndex < draftablePlayers.length) {
-            const playerId = draftablePlayers[playerIndex];
-            capData[captain.id].squad.push(playerId);
-            capData[captain.id].budget -= 100;
-            playerIndex++;
-          }
-        });
-      }
-      
-      captainList.forEach((captain) => {
-        capData[captain.id].shortlist = [];
-      });
-      
-      draft.tournamentAuctions[tournament.id] = {
-        phase: 'complete',
-        votes: {},
-        playerId: null,
-        bid: 0,
-        leaderId: null,
-        history: [
-          { type: 'complete', text: 'Auction completed via developer instant draft simulation' }
-        ]
-      };
-      
-      setTournamentPhase(target, PHASES.SQUADS);
-    });
-  };
-
-  const openSquadConfirmation = () => {
-    if (state.tournamentAuctions[tournament.id]?.phase !== 'complete') {
-      alert('Finish the auction before opening squad confirmation.');
-      return;
-    }
-    updateState((draft) => {
-      const target = draft.tournaments.find((item) => item.id === tournament.id);
-      if (target) setTournamentPhase(target, PHASES.SQUADS);
-    });
-  };
-
-  const startTournamentLive = () => {
-    const allReady = (tournament.captains || []).every((captain) => state.tournamentCaptainData[tournament.id]?.[captain.id]?.squadConfirmed);
-    if (!allReady) {
-      alert('Every captain must confirm their squad first.');
-      return;
-    }
-    updateState((draft) => {
-      const target = draft.tournaments.find((item) => item.id === tournament.id);
-      if (!target) return;
-      setTournamentPhase(target, PHASES.TOURNAMENT);
-      const teamIds = (target.captains || []).map((captain) => captain.id);
-      draft.tournamentCompetitions[tournament.id] = { phase: 'league', readyCaptainIds: teamIds, matches: createLeagueFixtures(teamIds), playerStats: [] };
-    });
-  };
-
-  const markComplete = () => {
-    updateState((draft) => {
-      const target = draft.tournaments.find((item) => item.id === tournament.id);
-      if (target) setTournamentPhase(target, PHASES.COMPLETE);
-    });
-  };
-
-  const auctionPlayersFor = (draft, target) => {
-    const ids = new Set(draft.tournamentPlayerIds[target.id] || []);
-    return auctionEligiblePlayers(draft.players.filter((player) => ids.has(player.id)), target.captains || []);
-  };
-  const captainSquadSize = (captainId, captainData) => 1 + new Set((captainData?.squad || []).filter((playerId) => playerId !== captainId)).size;
-
-  const fillAuctionVotes = () => updateState((draft) => {
-    const target = draft.tournaments.find((item) => item.id === tournament.id);
-    if (!target) return;
-    const auction = draft.tournamentAuctions[tournament.id];
-    const captainData = draft.tournamentCaptainData[tournament.id] || {};
-    const soldIds = new Set(Object.values(captainData).flatMap((data) => data.squad || []));
-    const players = auctionPlayersFor(draft, target);
-    const unsoldPlayers = players.filter((player) => !soldIds.has(player.id));
-    const activeCandidates = Array.from(new Set(
-      Object.values(captainData).map((data) => data.shortlist?.find((id) => !soldIds.has(id))).filter(Boolean)
-    ));
-    (target.captains || []).forEach((captain, index) => {
-      if (auction.votes[captain.id]) return;
-      const topPick = captainData[captain.id]?.shortlist?.find((id) => !soldIds.has(id));
-      const fallback = activeCandidates[index % Math.max(activeCandidates.length, 1)]
-        || unsoldPlayers[index % Math.max(unsoldPlayers.length, 1)]?.id;
-      if (topPick || fallback) auction.votes[captain.id] = topPick || fallback;
-    });
-  });
-
-  const revealAuctionNomination = () => updateState((draft) => {
-    const target = draft.tournaments.find((item) => item.id === tournament.id);
-    if (!target) return;
-    const auction = draft.tournamentAuctions[tournament.id];
-    const captainData = draft.tournamentCaptainData[tournament.id] || {};
-    const soldIds = new Set(Object.values(captainData).flatMap((data) => data.squad || []));
-    const players = auctionPlayersFor(draft, target);
-    const unsoldPlayers = players.filter((player) => !soldIds.has(player.id));
-    const activeCandidates = Array.from(new Set(
-      Object.values(captainData).map((data) => data.shortlist?.find((id) => !soldIds.has(id))).filter(Boolean)
-    ));
-    
-    // Automatically fill missing votes using shortlist or fallback
-    (target.captains || []).forEach((cap, index) => {
-      if (auction.votes[cap.id]) return;
-      const topPick = captainData[cap.id]?.shortlist?.find((id) => !soldIds.has(id));
-      const fallback = activeCandidates[index % Math.max(activeCandidates.length, 1)]
-        || unsoldPlayers[index % Math.max(unsoldPlayers.length, 1)]?.id;
-      if (topPick || fallback) auction.votes[cap.id] = topPick || fallback;
-    });
-
-    const counts = Object.values(auction.votes || {}).reduce((map, id) => ({ ...map, [id]: (map[id] || 0) + 1 }), {});
-    const top = Math.max(...Object.values(counts), 0);
-    const tied = Object.keys(counts).filter((id) => counts[id] === top);
-    const winner = tied[Math.floor(Math.random() * tied.length)];
-    if (!winner) return;
-    auction.phase = 'bidding';
-    auction.playerId = winner;
-    auction.bid = 50;
-    auction.leaderId = null;
-    const player = draft.players.find((item) => item.id === winner);
-    auction.history.unshift({ type: 'nomination', text: `${player?.tag || 'Player'} nominated at 50 coins` });
-  });
-
-  const recordHostBid = () => updateState((draft) => {
-    const target = draft.tournaments.find((item) => item.id === tournament.id);
-    if (!target) return;
-    const auction = draft.tournamentAuctions[tournament.id];
-    const captainData = draft.tournamentCaptainData[tournament.id] || {};
-    const teamSize = getTournamentTeamSize(target);
-    const price = getNextBidPrice(auction.bid, auction.leaderId);
-    const bidders = (target.captains || []).filter((captain) => (
-      captain.id !== auction.leaderId
-      && captainData[captain.id]?.budget >= price
-      && captainSquadSize(captain.id, captainData[captain.id]) < teamSize
-    ));
-    if (!bidders.length) return;
-    const bidder = bidders[0];
-    auction.bid = price;
-    auction.leaderId = bidder.id;
-    auction.history.unshift({ type: 'bid', text: `${bidder.handle || bidder.tag || 'Captain'} bid ${price}` });
-  });
-
-  const closeAuctionLot = () => updateState((draft) => {
-    const target = draft.tournaments.find((item) => item.id === tournament.id);
-    if (!target) return;
-    const auction = draft.tournamentAuctions[tournament.id];
-    const captainData = draft.tournamentCaptainData[tournament.id] || {};
-    if (!auction.leaderId) return;
-    const teamSize = getTournamentTeamSize(target);
-    const winner = auction.leaderId;
-    if (captainSquadSize(winner, captainData[winner]) >= teamSize) return;
-    const players = auctionPlayersFor(draft, target);
-    const wonPlayer = players.find((item) => item.id === auction.playerId);
-    captainData[winner].budget -= auction.bid;
-    captainData[winner].squad.push(auction.playerId);
-    Object.values(captainData).forEach((data) => { data.shortlist = (data.shortlist || []).filter((id) => id !== auction.playerId); });
-    const saleEntry = { type: 'sale', text: `${wonPlayer?.tag || 'Player'} signed by ${getClubInfo((target.captains || []).find((c) => c.id === winner)).name}` };
-    const soldIds = new Set(Object.values(captainData).flatMap((data) => data.squad || []));
-    const unsoldPlayers = players.filter((player) => !soldIds.has(player.id));
-    const openTeams = (target.captains || []).filter((captain) => captainSquadSize(captain.id, captainData[captain.id]) < teamSize);
-    if (openTeams.length === 0 || unsoldPlayers.length === 0) {
-      draft.tournamentAuctions[tournament.id] = { phase: 'complete', votes: {}, playerId: null, bid: 0, leaderId: null, history: [{ type: 'complete', text: 'Auction complete - All squads set' }, saleEntry, ...auction.history] };
-    } else if (unsoldPlayers.length === 1 && openTeams.length === 1) {
-      const lastPlayer = unsoldPlayers[0];
-      const onlyTeam = openTeams[0];
-      captainData[onlyTeam.id].squad.push(lastPlayer.id);
-      Object.values(captainData).forEach((data) => { data.shortlist = (data.shortlist || []).filter((id) => id !== lastPlayer.id); });
-      const autoEntry = { type: 'auto', text: `${lastPlayer.tag} auto-allocated to ${getClubInfo((target.captains || []).find((c) => c.id === onlyTeam.id)).name}` };
-      draft.tournamentAuctions[tournament.id] = { phase: 'complete', votes: {}, playerId: null, bid: 0, leaderId: null, history: [{ type: 'complete', text: 'Auction complete - All squads set' }, autoEntry, saleEntry, ...auction.history] };
-    } else {
-      draft.tournamentAuctions[tournament.id] = { phase: 'voting', votes: {}, playerId: null, bid: 0, leaderId: null, history: [saleEntry, ...auction.history] };
-    }
-  });
-
-  const passAuctionLot = () => updateState((draft) => {
-    const auction = draft.tournamentAuctions[tournament.id];
-    const passed = draft.players.find((item) => item.id === auction.playerId);
-    draft.tournamentAuctions[tournament.id] = { phase: 'voting', votes: {}, playerId: null, bid: 0, leaderId: null, history: [{ type: 'pass', text: `${passed?.tag || 'Player'} passed - no sale, back in the pool` }, ...auction.history] };
-  });
 
   const readCsv = async (event) => {
     const file = event.target.files?.[0];
@@ -1274,13 +928,8 @@ function OrganizerDashboard({ state, updateState, onLogout }) {
     document.body.removeChild(link);
   };
 
-  const auction = tournament ? state.tournamentAuctions[tournament.id] || createAuction() : createAuction();
-  const auctionPlayer = tournamentPlayers.find((player) => player.id === auction.playerId);
-  const auctionLeader = tournament?.captains?.find((captain) => captain.id === auction.leaderId);
-  const auctionVotesIn = Object.keys(auction.votes || {}).length;
-
   return (
-    <main className={`organizer-page ${roleThemeClass('organizer')}`}>
+    <main className="organizer-page">
       <header className="standalone-header"><Brand /><div><span className="organizer-badge"><Shield size={14} /> Organizer</span><button className="ghost" onClick={onLogout}><LogOut size={16} /> Sign out</button></div></header>
       <div className="organizer-layout">
         <aside className="tournament-list-panel">
@@ -1290,14 +939,14 @@ function OrganizerDashboard({ state, updateState, onLogout }) {
               <label><span>Tournament name</span><input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder="Friday Night FC" /></label>
               <div className="form-row">
                 <label><span>Start Date</span><input type="date" value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} /></label>
-                <label><span>Captains</span><input type="number" disabled value={4} /></label>
+                <label><span>Captains</span><input type="number" min="2" max="8" value={form.captainCount} onChange={(event) => setForm({ ...form, captainCount: event.target.value })} /></label>
               </div>
               <div className="form-row">
                 <label><span>Team Size</span><input type="number" min="2" value={form.teamSize} onChange={(event) => setForm({ ...form, teamSize: event.target.value })} /></label>
                 <label><span>Coin budget</span><input type="number" min="100" step="50" value={form.budget} onChange={(event) => setForm({ ...form, budget: event.target.value })} /></label>
               </div>
               <div className="team-size-calc-helper">
-                Total Players: {4 * Number(form.teamSize)} · 4 Teams
+                Total Players: {Number(form.captainCount) * Number(form.teamSize)} · {form.captainCount} Teams
               </div>
               <button className="primary full" onClick={createTournament}>Create tournament</button>
             </div>
@@ -1305,8 +954,8 @@ function OrganizerDashboard({ state, updateState, onLogout }) {
           <div className="organizer-tournament-list">
             {state.tournaments.map((item) => (
               <button key={item.id} className={selectedId === item.id ? 'active' : ''} onClick={() => { setSelectedId(item.id); setCsvRows([]); setImportMessage(''); setIsEditing(false); setDeleteConfirm(false); setShowAddPlayer(false); }}>
-                <span className={`tournament-dot ${getTournamentPhase(item)}`} />
-                <span><strong>{item.name}</strong><small>{phaseLabel(getTournamentPhase(item))} · {item.date}</small></span>
+                <span className={`tournament-dot ${item.status}`} />
+                <span><strong>{item.name}</strong><small>{item.status === 'active' ? 'Started' : 'Draft'} · {item.date}</small></span>
                 <ArrowRight size={15} />
               </button>
             ))}
@@ -1323,20 +972,20 @@ function OrganizerDashboard({ state, updateState, onLogout }) {
                 <label><span>Tournament Name</span><input value={editForm.name} onChange={(e) => setEditForm({...editForm, name: e.target.value})} /></label>
                 <div className="form-row">
                   <label><span>Start Date</span><input type="date" value={editForm.date} onChange={(e) => setEditForm({...editForm, date: e.target.value})} /></label>
-                  {canEditRules ? (
-                    <label><span>Captains</span><input type="number" disabled value={4} /></label>
+                  {tournament.status === 'draft' ? (
+                    <label><span>Captains</span><input type="number" min="2" max="8" value={editForm.captainCount} onChange={(e) => setEditForm({...editForm, captainCount: e.target.value})} /></label>
                   ) : (
                     <label><span>Captains</span><input type="number" disabled value={tournament.captainCount} /></label>
                   )}
                 </div>
-                {canEditRules ? (
+                {tournament.status === 'draft' ? (
                   <>
                     <div className="form-row">
                       <label><span>Team Size</span><input type="number" min="2" value={editForm.teamSize} onChange={(e) => setEditForm({...editForm, teamSize: e.target.value})} /></label>
                       <label><span>Coin Budget</span><input type="number" min="100" step="50" value={editForm.budget} onChange={(e) => setEditForm({...editForm, budget: e.target.value})} /></label>
                     </div>
                     <div className="team-size-calc-helper">
-                      Total Players: {4 * Number(editForm.teamSize)} · 4 Teams
+                      Total Players: {Number(editForm.captainCount) * Number(editForm.teamSize)} · {editForm.captainCount} Teams
                     </div>
                   </>
                 ) : (
@@ -1345,7 +994,7 @@ function OrganizerDashboard({ state, updateState, onLogout }) {
                       <label><span>Team Size</span><input type="number" disabled value={tournament.teamSize || Math.floor(Number(tournament.totalPlayers || 16) / Number(tournament.captainCount))} /></label>
                       <label><span>Coin Budget</span><input type="number" disabled value={tournament.budget} /></label>
                     </div>
-                    <p className="locked-warning">Team size, captains, and budget are locked after draft setup.</p>
+                    <p className="locked-warning">⚠️ Team size, captains, and budget are locked for active tournaments.</p>
                   </>
                 )}
                 <div className="edit-actions">
@@ -1356,18 +1005,16 @@ function OrganizerDashboard({ state, updateState, onLogout }) {
             ) : (
               <div className="control-hero">
                 <div>
-                  <span className={`tournament-status ${phase}`}>{phaseLabel(phase)}</span>
+                  <span className={`tournament-status ${tournament.status}`}>{tournament.status === 'active' ? 'Tournament started' : 'Draft setup'}</span>
                   <h2>{tournament.name}</h2>
                   <p>{tournament.format} · {tournament.captainCount} captains · {money(tournament.budget)} coins each · Start Date: {tournament.date}</p>
                 </div>
                 <div className="control-actions">
-                  {phase === PHASES.DRAFT && <button className="primary" onClick={openRegistration}><Play size={17} /> Open registration</button>}
-                  {phase === PHASES.REGISTRATION && <button className="primary" onClick={lockRegistration}><UsersRound size={17} /> Lock registration</button>}
-                  {phase === PHASES.CAPTAINS && <button className="primary" onClick={startAuction}><Radio size={17} /> Start auction</button>}
-                  {phase === PHASES.AUCTION && <button className="primary" onClick={openSquadConfirmation}><BadgeCheck size={17} /> Open squad confirmation</button>}
-                  {phase === PHASES.SQUADS && <button className="primary" onClick={startTournamentLive}><Swords size={17} /> Start tournament</button>}
-                  {phase === PHASES.TOURNAMENT && <button className="primary" onClick={markComplete}><Crown size={17} /> Mark complete</button>}
-                  {phase !== PHASES.DRAFT && <button className="secondary" onClick={resetTournament}><RotateCcw size={17} /> Reset to Draft</button>}
+                  {tournament.status === 'draft' ? (
+                    <button className="primary" onClick={startTournament}><Play size={17} /> Start tournament</button>
+                  ) : (
+                    <button className="secondary" onClick={resetTournament}><RotateCcw size={17} /> Reset to Draft</button>
+                  )}
                   <button className="secondary icon-only" title="Edit competition details" onClick={startEditing}>
                     <Settings size={17} />
                   </button>
@@ -1385,249 +1032,15 @@ function OrganizerDashboard({ state, updateState, onLogout }) {
                 </div>
               </div>
             )}
-            {phase === PHASES.AUCTION && (() => {
-              const readiness = getCaptainReadiness(state, tournament);
-              const isRosterReadyForAuctionRound = readiness.every(r => r.isReady);
-              return (
-                <section className="panel organizer-auction-panel">
-                  <div className="panel-head">
-                    <div><span className="section-step">A</span><h2>Live Auction Monitor</h2></div>
-                    <span className="status-pill good"><Radio size={14} /> {
-                      auction.phase === 'voting' ? 'Waiting for votes' :
-                      auction.phase === 'bidding' ? 'Bidding live' : 'Auction complete'
-                    }</span>
-                  </div>
-                  
-                  {/* Current Lot Info */}
-                  <div className="auction-monitor-current-lot" style={{ padding: '12px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', border: '1px solid var(--line)', marginBottom: '12px' }}>
-                    <span style={{ fontSize: '9px', color: 'var(--muted)', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>Current Round State</span>
-                    {auction.phase === 'voting' ? (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <Vote size={18} style={{ color: '#ffb96e' }} />
-                        <div>
-                          <strong style={{ fontSize: '12px', display: 'block' }}>Nomination Phase</strong>
-                          <span style={{ fontSize: '10px', color: 'var(--muted)' }}>
-                            {auctionVotesIn} of {tournament.captains?.length || 0} captains have submitted their votes.
-                          </span>
-                        </div>
-                      </div>
-                    ) : auction.phase === 'bidding' ? (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <Avatar person={auctionPlayer} size="sm" />
-                        <div>
-                          <strong style={{ fontSize: '12px', display: 'block' }}>Bidding Live: {auctionPlayer?.tag} ({auctionPlayer?.primary})</strong>
-                          <span style={{ fontSize: '10px', color: 'var(--muted)' }}>
-                            OVR: {auctionPlayer?.rating} · Style: {auctionPlayer?.style}
-                          </span>
-                        </div>
-                      </div>
-                    ) : (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <Crown size={18} style={{ color: '#ffd700' }} />
-                        <div>
-                          <strong style={{ fontSize: '12px', display: 'block' }}>Auction Complete</strong>
-                          <span style={{ fontSize: '10px', color: 'var(--muted)' }}>All squads have been finalized.</span>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Leading Bid Info */}
-                  {auction.phase === 'bidding' && (
-                    <div className="auction-monitor-bid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', padding: '12px', background: 'rgba(217,255,99,0.05)', border: '1px solid rgba(217,255,99,0.15)', borderRadius: '8px', marginBottom: '12px' }}>
-                      <div>
-                        <span style={{ fontSize: '9px', color: 'var(--muted)' }}>Highest Bid</span>
-                        <div style={{ fontSize: '18px', fontWeight: 'bold', color: 'var(--lime)', display: 'flex', alignItems: 'center', gap: '3px', marginTop: '2px' }}>
-                          <Coins size={15} /> {auction.bid}
-                        </div>
-                      </div>
-                      <div>
-                        <span style={{ fontSize: '9px', color: 'var(--muted)' }}>Leading Captain</span>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px' }}>
-                          {auctionLeader ? (
-                            <>
-                              <ClubMark club={getClubInfo(auctionLeader)} size="xs" />
-                              <strong style={{ fontSize: '11px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{getClubInfo(auctionLeader).name}</strong>
-                            </>
-                          ) : (
-                            <span style={{ fontSize: '10px', color: 'var(--muted)' }}>Waiting for first bid</span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Captains Shortlist Readiness (only in voting phase) */}
-                  {auction.phase === 'voting' && (
-                    <div style={{ margin: '12px 0', padding: '10px', background: 'rgba(255,255,255,0.02)', borderRadius: '6px', border: '1px solid var(--line)' }}>
-                      <h4 style={{ fontSize: '10px', margin: '0 0 6px', color: 'var(--muted)', textTransform: 'uppercase' }}>Captain Shortlist Readiness</h4>
-                      <div style={{ display: 'grid', gap: '4px' }}>
-                        {readiness.map((cap) => (
-                          <div key={cap.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '11px' }}>
-                            <span>{cap.handle}</span>
-                            {cap.isReady ? (
-                              <span style={{ color: '#67e8c2' }}>✓ Ready ({cap.shortlistCount} picks)</span>
-                            ) : (
-                              <span style={{ color: '#ffb96e' }}>⚠️ Missing Shortlist</span>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Captains Status (Budgets & Squad progress) */}
-                  <div className="auction-monitor-captains" style={{ marginBottom: '12px' }}>
-                    <h3 style={{ fontSize: '10px', color: 'var(--muted)', marginBottom: '6px', textTransform: 'uppercase' }}>Captains Status</h3>
-                    <div style={{ display: 'grid', gap: '6px' }}>
-                      {(tournament.captains || []).map((captain) => {
-                        const capData = state.tournamentCaptainData[tournament.id]?.[captain.id] || { squad: [], budget: 0 };
-                        const club = getClubInfo(captain);
-                        const size = captainSquadSize(captain.id, capData);
-                        const teamSize = getTournamentTeamSize(tournament);
-                        const hasVoted = !!auction.votes[captain.id];
-                        
-                        return (
-                          <div key={captain.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', background: 'rgba(255,255,255,0.01)', border: '1px solid var(--line)', borderRadius: '6px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                              <ClubMark club={club} size="xs" />
-                              <div>
-                                <strong style={{ fontSize: '11px', display: 'block' }}>{club.name}</strong>
-                                <span style={{ fontSize: '9px', color: 'var(--muted)' }}>
-                                  Squad: {size}/{teamSize} {size >= teamSize && ' (FULL)'}
-                                </span>
-                              </div>
-                            </div>
-                            <div style={{ textAlign: 'right', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                              {auction.phase === 'voting' && (
-                                <span style={{ fontSize: '9px', padding: '1px 4px', borderRadius: '3px', background: hasVoted ? 'rgba(103,232,194,0.08)' : 'rgba(255,255,255,0.03)', color: hasVoted ? '#67e8c2' : 'var(--muted)' }}>
-                                  {hasVoted ? 'Voted' : 'Voting...'}
-                                </span>
-                              )}
-                              <div style={{ fontWeight: 'bold', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '2px' }}>
-                                <Coins size={10} /> {capData.budget}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Main Control Actions */}
-                  <div className="control-actions" style={{ padding: '10px 0', borderTop: '1px solid var(--line)' }}>
-                    {auction.phase === 'voting' ? (
-                      <div style={{ width: '100%' }}>
-                        {!isRosterReadyForAuctionRound && (
-                          <p style={{ fontSize: '10px', color: '#ffb96e', margin: '0 0 6px', textAlign: 'center' }}>
-                            ⚠️ All active captains must have at least 1 valid shortlist pick.
-                          </p>
-                        )}
-                        <button 
-                          className="primary full" 
-                          disabled={!isRosterReadyForAuctionRound} 
-                          onClick={revealAuctionNomination}
-                        >
-                          <ArrowRight size={15} /> Reveal Nomination
-                        </button>
-                      </div>
-                    ) : auction.phase === 'bidding' ? (
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', width: '100%' }}>
-                        <button className="primary" disabled={!auction.leaderId} onClick={closeAuctionLot}>
-                          <BadgeCheck size={15} /> Award Player
-                        </button>
-                        <button className="secondary" onClick={passAuctionLot}>
-                          Pass No Sale
-                        </button>
-                      </div>
-                    ) : (
-                      <div style={{ fontSize: '10px', color: 'var(--muted)', textAlign: 'center', width: '100%' }}>
-                        Auction complete. Advance to squad confirmation.
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Admin / Override Tools */}
-                  <div className="admin-override-section" style={{ marginTop: '12px', paddingTop: '8px', borderTop: '1px dashed rgba(255,255,255,0.08)' }}>
-                    <details style={{ width: '100%' }}>
-                      <summary style={{ fontSize: '10px', color: 'var(--muted)', cursor: 'pointer', userSelect: 'none', padding: '2px 0' }}>
-                        ⚙ Admin / Override Tools
-                      </summary>
-                      <div style={{ display: 'grid', gap: '6px', marginTop: '6px', padding: '6px', background: 'rgba(255,0,0,0.01)', border: '1px solid rgba(255,0,0,0.08)', borderRadius: '6px' }}>
-                        <button className="secondary btn-xs full" style={{ fontSize: '9px', padding: '4px', backgroundColor: 'rgba(217,255,99,0.08)', color: 'var(--lime)', border: '1px solid rgba(217,255,99,0.2)' }} onClick={simulateInstantDraft}>
-                          <Sparkles size={11} /> Instant Draft (Skip Auction)
-                        </button>
-                        {auction.phase === 'voting' && (
-                          <button className="secondary btn-xs full" style={{ fontSize: '9px', padding: '4px' }} onClick={fillAuctionVotes}>
-                            <Sparkles size={11} /> Force fill open votes (Demo)
-                          </button>
-                        )}
-                        <button className="secondary btn-danger btn-xs full" style={{ fontSize: '9px', padding: '4px' }} onClick={resetTournament}>
-                          <RotateCcw size={11} /> Force reset competition state
-                        </button>
-                      </div>
-                    </details>
-                  </div>
-
-                  {/* Bid History */}
-                  <div style={{ marginTop: '12px' }}>
-                    <h3 style={{ fontSize: '10px', color: 'var(--muted)', marginBottom: '4px' }}>History</h3>
-                    <div className="history" style={{ maxHeight: '80px', overflowY: 'auto', padding: '6px', background: 'rgba(0,0,0,0.12)', borderRadius: '6px', fontSize: '9px' }}>
-                      {auction.history.length > 0 ? (
-                        auction.history.slice(0, 5).map((item, index) => (
-                          <p key={index} style={{ margin: '2px 0', color: item.type === 'sale' ? 'var(--lime)' : item.type === 'pass' ? '#ff766e' : 'var(--muted)' }}>
-                            • {item.text}
-                          </p>
-                        ))
-                      ) : (
-                        <p style={{ color: 'var(--muted)', margin: 0 }}>No activity yet</p>
-                      )}
-                    </div>
-                  </div>
-                </section>
-              );
-            })()}
-            {[PHASES.TOURNAMENT, PHASES.COMPLETE].includes(phase) && (
-              <div style={{ marginTop: '20px' }}>
-                <TournamentHub 
-                  user={{ role: 'organizer', id: 'organizer' }} 
-                  state={{
-                    players: state.players.filter((player) => (state.tournamentPlayerIds[tournament.id] || []).includes(player.id)),
-                    captainData: state.tournamentCaptainData[tournament.id],
-                    auction: state.tournamentAuctions[tournament.id],
-                    competition: state.tournamentCompetitions?.[tournament.id] || createCompetition(),
-                    captains: tournament.captains || [],
-                    teamSize: getTournamentTeamSize(tournament),
-                  }} 
-                  updateState={(recipe) => updateState((draft) => {
-                    const targetTournament = draft.tournaments.find((t) => t.id === tournament.id);
-                    const scoped = {
-                      players: draft.players.filter((player) => (draft.tournamentPlayerIds[tournament.id] || []).includes(player.id)),
-                      captainData: draft.tournamentCaptainData[tournament.id],
-                      auction: draft.tournamentAuctions[tournament.id],
-                      competition: draft.competition || draft.tournamentCompetitions[tournament.id] || createCompetition(),
-                      captains: targetTournament?.captains || [],
-                      teamSize: getTournamentTeamSize(targetTournament),
-                    };
-                    recipe(scoped);
-                    draft.tournamentCaptainData[tournament.id] = scoped.captainData;
-                    draft.tournamentAuctions[tournament.id] = scoped.auction;
-                    draft.tournamentCompetitions[tournament.id] = scoped.competition;
-                    draft._sync = { origin: 'local', updatedAt: Date.now() };
-                  })}
-                  isOrganizer={true}
-                />
-              </div>
-            )}
             <div className="control-stats"><div><span>Registered players</span><strong>{tournamentPlayers.length}</strong></div><div><span>Captain slots</span><strong>{tournament.captainCount}</strong></div><div><span>Auction budget</span><strong>{money(tournament.budget)}</strong></div></div>
             <div className="active-tournament-management">
               <div className="org-tabs">
                 <button className={orgTab === 'roster' ? 'active' : ''} onClick={() => setOrgTab('roster')}><UsersRound size={16} /> Registered Players ({tournamentPlayers.length})</button>
-                {canManageRoster && (
+                {tournament.status === 'draft' && (
                   <button className={orgTab === 'csv' ? 'active' : ''} onClick={() => setOrgTab('csv')}><FileSpreadsheet size={16} /> CSV Import</button>
                 )}
               </div>
-              {orgTab === 'csv' && canManageRoster ? (
+              {orgTab === 'csv' && tournament.status === 'draft' ? (
                 <div className="csv-import-panel">
                   <div className="csv-title"><span className="csv-icon"><FileSpreadsheet size={23} /></span><div><span className="page-kicker">Player registration</span><h3>Import player pool from CSV</h3><p>Upload names, primary positions, and secondary positions.</p></div></div>
                   <div className="csv-actions"><label className="upload-drop"><Upload size={22} /><span><strong>Choose a CSV file</strong><small>Required: name, primary_position, secondary_position</small></span><input type="file" accept=".csv,text/csv" onChange={readCsv} /></label><div className="csv-template-buttons" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}><button className="secondary" onClick={downloadCsvTemplate}><Download size={16} /> Download Template</button><button className="secondary" onClick={() => { setCsvRows(parseCsv(SAMPLE_CSV)); setImportMessage(''); }}><Sparkles size={16} /> Load sample CSV</button></div></div>
@@ -1651,13 +1064,13 @@ function OrganizerDashboard({ state, updateState, onLogout }) {
                       <h3>Tournament Roster</h3>
                       <p>{tournamentPlayers.length} players currently registered in this competition.</p>
                     </div>
-                    {canManageRoster ? (
+                    {tournament.status === 'draft' ? (
                       <button className="secondary" onClick={() => setShowAddPlayer(!showAddPlayer)}>{showAddPlayer ? <X size={15} /> : <UserPlus size={15} />} {showAddPlayer ? 'Cancel' : 'Add Player'}</button>
                     ) : (
-                      <span className="roster-status-locked" style={{ fontSize: '12px', color: 'var(--muted)', display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'rgba(255,255,255,0.03)', padding: '4px 8px', borderRadius: '6px' }}>Roster locked</span>
+                      <span className="roster-status-locked" style={{ fontSize: '12px', color: 'var(--muted)', display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'rgba(255,255,255,0.03)', padding: '4px 8px', borderRadius: '6px' }}>🔒 Roster Locked</span>
                     )}
                   </div>
-                  {showAddPlayer && canManageRoster && (
+                  {showAddPlayer && tournament.status === 'draft' && (
                     <div className="manual-player-form">
                       <h4>Add Player Manually</h4>
                       <div className="manual-form-grid" style={{ gridTemplateColumns: '1fr' }}>
@@ -1672,12 +1085,12 @@ function OrganizerDashboard({ state, updateState, onLogout }) {
                   )}
                   {tournamentPlayers.length > 0 ? (
                     <div className="roster-list">
-                      <div className="roster-list-header" style={{ gridTemplateColumns: canManageRoster || canSelectCaptains ? '2fr 1fr 1fr 1.5fr 80px' : '2fr 1fr 1fr 1.5fr' }}>
+                      <div className="roster-list-header" style={{ gridTemplateColumns: tournament.status === 'draft' ? '2fr 1fr 1fr 1.5fr 80px' : '2fr 1fr 1fr 1.5fr' }}>
                         <span>Player Details</span>
                         <span>Positions</span>
                         <span>Style</span>
-                        <span>{canSelectCaptains ? 'Captain Team' : 'Assigned Team'}</span>
-                        {(canManageRoster || canSelectCaptains) && <span>Action</span>}
+                        <span>{tournament.status === 'draft' ? 'Captain Team' : 'Assigned Team'}</span>
+                        {tournament.status === 'draft' && <span>Action</span>}
                       </div>
                       <div className="roster-list-body">
                         {tournamentPlayers.map((player) => {
@@ -1687,7 +1100,7 @@ function OrganizerDashboard({ state, updateState, onLogout }) {
                           const assignedCapInfo = tournament.captains?.find((c) => c.id === assignedCap);
 
                           return (
-                            <div className="roster-item" key={player.id} style={{ gridTemplateColumns: canManageRoster || canSelectCaptains ? '2fr 1fr 1fr 1.5fr 80px' : '2fr 1fr 1fr 1.5fr' }}>
+                            <div className="roster-item" key={player.id} style={{ gridTemplateColumns: tournament.status === 'draft' ? '2fr 1fr 1fr 1.5fr 80px' : '2fr 1fr 1fr 1.5fr' }}>
                               <div className="roster-item-info">
                                 <Avatar person={player} size="xs" />
                                 <div>
@@ -1695,19 +1108,12 @@ function OrganizerDashboard({ state, updateState, onLogout }) {
                                     <strong>{player.tag}</strong>
                                     {isCap && <span className="captain-badge" title="Tournament Captain" style={{ backgroundColor: 'rgba(255, 215, 0, 0.15)', color: '#ffd700', padding: '2px 6px', borderRadius: '4px', fontSize: '9px', fontWeight: 'bold', display: 'inline-flex', alignItems: 'center', gap: '3px' }}><Trophy size={10} /> CAP</span>}
                                   </div>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                                    <small>{player.name}</small>
-                                    {isProfileComplete(player) ? (
-                                      <span style={{ fontSize: '8px', color: '#67e8c2', background: 'rgba(103,232,194,0.08)', padding: '1px 4px', borderRadius: '4px', display: 'inline-flex', alignItems: 'center' }}>✓ Complete</span>
-                                    ) : (
-                                      <span style={{ fontSize: '8px', color: '#ffb96e', background: 'rgba(255,185,110,0.08)', padding: '1px 4px', borderRadius: '4px', display: 'inline-flex', alignItems: 'center' }}>⚠ Incomplete</span>
-                                    )}
-                                  </div>
+                                  <small>{player.name}</small>
                                 </div>
                               </div>
                               <span className="roster-pos">{player.primary} / {player.secondary}</span>
                               <span className="roster-style">{player.style}</span>
-                              {canSelectCaptains ? (
+                              {tournament.status === 'draft' ? (
                                 isCap ? (
                                   <div className="captain-team-field" style={{ display: 'flex', alignItems: 'center' }}>
                                     <input 
@@ -1730,19 +1136,17 @@ function OrganizerDashboard({ state, updateState, onLogout }) {
                                   <span className="roster-style" style={{ opacity: 0.4 }}>Unassigned</span>
                                 )
                               )}
-                              {(canManageRoster || canSelectCaptains) && (
+                              {tournament.status === 'draft' && (
                                 <div style={{ display: 'flex', gap: '4px' }}>
-                                  {canSelectCaptains && (
-                                    <button 
-                                      className={`ghost icon-only ${isCap ? 'active btn-warning' : ''}`} 
-                                      title={isCap ? 'Demote Captain' : 'Promote to Captain'} 
-                                      onClick={() => toggleCaptain(player)}
-                                      style={isCap ? { color: '#ffd700' } : {}}
-                                    >
-                                      <Trophy size={15} />
-                                    </button>
-                                  )}
-                                  {canManageRoster && <button className="ghost btn-danger icon-only" title="Remove from tournament" onClick={() => removePlayerFromTournament(player.id)}><X size={15} /></button>}
+                                  <button 
+                                    className={`ghost icon-only ${isCap ? 'active btn-warning' : ''}`} 
+                                    title={isCap ? 'Demote Captain' : 'Promote to Captain'} 
+                                    onClick={() => toggleCaptain(player)}
+                                    style={isCap ? { color: '#ffd700' } : {}}
+                                  >
+                                    <Trophy size={15} />
+                                  </button>
+                                  <button className="ghost btn-danger icon-only" title="Remove from tournament" onClick={() => removePlayerFromTournament(player.id)}><X size={15} /></button>
                                 </div>
                               )}
                             </div>
@@ -1770,40 +1174,24 @@ function OrganizerDashboard({ state, updateState, onLogout }) {
 }
 
 
-function AppShell({ user, active, setActive, onLogout, onChangeTournament, children, budget, tournament, players, captains: propCaptains, competition }) {
+function AppShell({ user, active, setActive, onLogout, onChangeTournament, children, budget, tournament, players, captains: propCaptains }) {
   const resolvedCaptains = propCaptains && propCaptains.length ? propCaptains : captains;
   const captain = resolvedCaptains.find((item) => item.id === user.id);
   const club = getClubInfo(captain);
   const isCaptain = user.role === 'captain';
-  const phase = getTournamentPhase(tournament);
-  const captainNavByPhase = {
-    [PHASES.CAPTAINS]: [['squad', 'Scout', UsersRound], ['club', 'Club settings', Settings]],
-    [PHASES.AUCTION]: [['squad', 'Squad', UsersRound], ['auction', 'Auction', Radio], ['club', 'Club settings', Settings]],
-    [PHASES.SQUADS]: [['squad', 'Squad', UsersRound], ['tournament', 'Confirm', BadgeCheck], ['club', 'Club settings', Settings]],
-    [PHASES.TOURNAMENT]: [['squad', 'Squad', UsersRound], ['tournament', 'Tournament', Swords], ['club', 'Club settings', Settings]],
-    [PHASES.COMPLETE]: [['squad', 'Squad', UsersRound], ['tournament', 'Results', Crown], ['club', 'Club settings', Settings]],
-  };
-  const playerNavByPhase = {
-    [PHASES.REGISTRATION]: [['profile', 'Profile', CircleUserRound]],
-    [PHASES.CAPTAINS]: [['profile', 'Profile', CircleUserRound], ['pool', 'Player pool', UsersRound]],
-    [PHASES.AUCTION]: [['pool', 'Draft room', UsersRound]],
-    [PHASES.SQUADS]: [['pool', 'Squads', UsersRound]],
-    [PHASES.TOURNAMENT]: [['pool', 'Squads', UsersRound], ['tournament', 'Tournament', Swords]],
-    [PHASES.COMPLETE]: [['pool', 'Results', Trophy], ['tournament', 'Results & Standings', Crown]],
-  };
   const navItems = isCaptain
-    ? (captainNavByPhase[phase] || [['squad', 'Squad', UsersRound], ['club', 'Club settings', Settings]])
-    : (playerNavByPhase[phase] || [['profile', 'Profile', CircleUserRound]]);
+    ? [['squad', 'Squad', UsersRound], ['auction', 'Auction', Radio], ['tournament', 'Tournament', Swords], ['club', 'Club settings', Settings]]
+    : [['profile', 'My profile', CircleUserRound], ['pool', 'Player pool', UsersRound]];
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
-    <div className={`app-shell ${roleThemeClass(user.role)}`}>
+    <div className="app-shell">
       <aside className={`sidebar ${mobileOpen ? 'open' : ''}`}>
         <div className="sidebar-head"><Brand /><button className="icon-button mobile-close" onClick={() => setMobileOpen(false)}><X size={18} /></button></div>
         <div className="event-card">
-          <span className="event-kicker"><span className="live-dot" /> {phaseLabel(phase)}</span>
+          <span className="event-kicker"><span className="live-dot" /> Live tournament</span>
           <strong>{tournament.name}</strong>
-          <span><Clock3 size={14} /> {tournament.date || 'Date TBD'}</span>
+          <span><Clock3 size={14} /> Auction · {tournament.time || 'TBD'}</span>
         </div>
         <button className="tournament-switch" onClick={onChangeTournament}><Trophy size={15} /> Change tournament <ArrowRight size={14} /></button>
         <nav>
@@ -1811,14 +1199,14 @@ function AppShell({ user, active, setActive, onLogout, onChangeTournament, child
           {navItems.map(([id, label, Icon]) => (
             <button key={id} className={active === id ? 'active' : ''} onClick={() => { setActive(id); setMobileOpen(false); }}>
               <Icon size={19} /> {label}
-              {id === 'auction' && phase === PHASES.AUCTION && <span className="nav-live">Live</span>}
+              {id === 'auction' && <span className="nav-live">Live</span>}
             </button>
           ))}
         </nav>
         <div className="sidebar-bottom">
           {isCaptain && <div className="budget-mini"><span>Available budget</span><strong><Coins size={18} /> {money(budget)}</strong></div>}
           <button className="profile-chip" onClick={onLogout}>
-            {isCaptain ? <ClubMark club={club} size="sm" /> : <Avatar person={players.find((item) => item.id === user.id) || resolvedCaptains.find((item) => item.id === user.id)} size="sm" />}
+            {isCaptain ? <ClubMark club={club} size="sm" /> : <Avatar person={players.find((item) => item.id === user.id)} size="sm" />}
             <span><strong>{captain?.handle || players.find((item) => item.id === user.id)?.tag || user.name || 'Captain'}</strong><small>{isCaptain ? club.name : 'Registered player'}</small></span>
             <LogOut size={17} />
           </button>
@@ -1826,19 +1214,8 @@ function AppShell({ user, active, setActive, onLogout, onChangeTournament, child
       </aside>
       <div className="mobile-top"><button className="icon-button" onClick={() => setMobileOpen(true)}><Menu size={20} /></button><Brand /></div>
       {mobileOpen && <div className="sidebar-overlay" onClick={() => setMobileOpen(false)} />}
-      <section className="content" key={`${user.role}-${active}-${tournament.id}`}>{children}</section>
+      <section className="content">{children}</section>
     </div>
-  );
-}
-
-function PhaseNotice({ title, body, actionLabel, onAction }) {
-  return (
-    <section className="panel phase-notice">
-      <Clock3 size={34} />
-      <h1>{title}</h1>
-      <p>{body}</p>
-      {actionLabel && <button className="primary" onClick={onAction}>{actionLabel} <ArrowRight size={17} /></button>}
-    </section>
   );
 }
 
@@ -1885,7 +1262,7 @@ function FormationPicker({ set, current, onChange }) {
   );
 }
 
-function PlayerCard({ player, rank, onRank, sold, soldClub, hideRankButton }) {
+function PlayerCard({ player, rank, onRank, sold, soldClub }) {
   return (
     <article className={`player-card ${rank ? 'shortlisted' : ''} ${sold ? 'sold' : ''}`}>
       <div className="player-card-head">
@@ -1897,7 +1274,7 @@ function PlayerCard({ player, rank, onRank, sold, soldClub, hideRankButton }) {
       <div className="trait-row">{player.traits.map((trait) => <span key={trait}>{trait}</span>)}</div>
       {sold ? (
         <div className="rank-button sold-label"><ClubMark club={soldClub} size="xs" /><span>Drafted to</span><strong>{soldClub?.name || 'Another Team'}</strong></div>
-      ) : hideRankButton ? null : (
+      ) : (
         <button className={`rank-button ${rank ? 'active' : ''}`} onClick={onRank}>
           {rank ? <><span>#{rank}</span> Priority pick <X size={15} /></> : <><Target size={16} /> Add to shortlist</>}
         </button>
@@ -1929,8 +1306,8 @@ function SquadRoom({ user, state, updateState, goAuction }) {
     .map((playerId) => state.players.find((player) => player.id === playerId))
     .filter(Boolean);
   const teamMembers = [captainMember, ...squadPlayers];
-  const teamSize = state.teamSize || 11;
-  const formationSet = getFormationSet(teamSize);
+  const teamSize = 11;
+  const formationSet = getFormationSet(11);
   const formationNames = Object.keys(formationSet);
   const activeFormation = formationSet[data.formation] ? data.formation : formationNames[0];
   const spots = formationSet[activeFormation];
@@ -1942,11 +1319,11 @@ function SquadRoom({ user, state, updateState, goAuction }) {
   });
 
   const setFormation = (formation) => updateState((draft) => {
-    const set = getFormationSet(draft.teamSize || teamSize);
+    const set = getFormationSet(11);
     if (!set[formation]) return;
     const activeSpotIds = new Set(set[formation].map((spot) => spot.id));
     if (!draft.captainData[user.id]) {
-      draft.captainData[user.id] = { formation, shortlist: [], budget: 1000, squad: [], lineup: { GK: captainMemberId }, squadConfirmed: false };
+      draft.captainData[user.id] = { formation, shortlist: [], budget: 1000, squad: [], lineup: { GK: captainMemberId } };
     }
     const currentLineup = draft.captainData[user.id].lineup || {};
     draft.captainData[user.id].formation = formation;
@@ -1963,7 +1340,7 @@ function SquadRoom({ user, state, updateState, goAuction }) {
     }
     updateState((draft) => {
       if (!draft.captainData[user.id]) {
-        draft.captainData[user.id] = { formation: activeFormation, shortlist: [], budget: 1000, squad: [], lineup: {}, squadConfirmed: false };
+        draft.captainData[user.id] = { formation: activeFormation, shortlist: [], budget: 1000, squad: [], lineup: {} };
       }
       const lineup = draft.captainData[user.id].lineup || {};
       const placingCaptain = isCaptainMember(selectedMemberId);
@@ -1974,9 +1351,9 @@ function SquadRoom({ user, state, updateState, goAuction }) {
     setSelectedMemberId(null);
   };
   const autoPlace = () => updateState((draft) => {
-      if (!draft.captainData[user.id]) {
-        draft.captainData[user.id] = { formation: activeFormation, shortlist: [], budget: 1000, squad: [], lineup: {}, squadConfirmed: false };
-      }
+    if (!draft.captainData[user.id]) {
+      draft.captainData[user.id] = { formation: activeFormation, shortlist: [], budget: 1000, squad: [], lineup: {} };
+    }
     const size = draft.teamSize || teamSize;
     const set = getFormationSet(size);
     const formName = set[draft.captainData[user.id].formation] ? draft.captainData[user.id].formation : Object.keys(set)[0];
@@ -1997,8 +1374,8 @@ function SquadRoom({ user, state, updateState, goAuction }) {
     draft.captainData[user.id].lineup = lineup;
   });
   const toggleShortlist = (playerId) => updateState((draft) => {
-      if (!draft.captainData[user.id]) {
-      draft.captainData[user.id] = { formation: activeFormation, shortlist: [], budget: 1000, squad: [], lineup: {}, squadConfirmed: false };
+    if (!draft.captainData[user.id]) {
+      draft.captainData[user.id] = { formation: '4-3-3', shortlist: [], budget: 1000, squad: [], lineup: {} };
     }
     if (!draft.captainData[user.id].shortlist) draft.captainData[user.id].shortlist = [];
     const list = draft.captainData[user.id].shortlist;
@@ -2008,7 +1385,7 @@ function SquadRoom({ user, state, updateState, goAuction }) {
     else { list.shift(); list.push(playerId); }
   });
   const totalAvailable = 1 + (data.squad || []).length;
-  const pitchFull = totalAvailable >= teamSize && Object.keys(data.lineup || {}).length >= teamSize;
+  const pitchFull = Object.keys(data.lineup || {}).length >= totalAvailable && totalAvailable > 1;
   const squadConfirmed = data.squadConfirmed || false;
   const confirmSquad = () => updateState((draft) => {
     if (!draft.captainData[user.id]) return;
@@ -2155,34 +1532,26 @@ function BiddingRoom({ user, state, updateState, onReset }) {
   const auction = state.auction;
   const player = state.players.find((item) => item.id === auction.playerId);
   const leader = state.captains.find((item) => item.id === auction.leaderId);
-  const nextBid = getNextBidPrice(auction.bid, auction.leaderId);
+  const nextBid = auction.leaderId ? auction.bid + 25 : 50;
   const teamSize = state.teamSize || 11;
   const squadSize = (captainId, data) => 1 + new Set((data.squad || []).filter((playerId) => playerId !== captainId)).size;
   const squadFull = squadSize(user.id, state.captainData[user.id]) >= teamSize;
-  const maxAllowedBid = getMaxAllowedBid(state.captainData[user.id].budget, squadSize(user.id, state.captainData[user.id]), teamSize);
-  const reservedCoins = Math.max(0, state.captainData[user.id].budget - maxAllowedBid);
-  const canAfford = nextBid <= maxAllowedBid && !squadFull;
+  const canAfford = state.captainData[user.id].budget >= nextBid && !squadFull;
 
   const bid = () => updateState((draft) => {
-    const price = getNextBidPrice(draft.auction.bid, draft.auction.leaderId);
+    const price = draft.auction.leaderId ? draft.auction.bid + 25 : 50;
     if (draft.captainData[user.id].budget < price) return;
-    const maxAllowed = getMaxAllowedBid(draft.captainData[user.id].budget, squadSize(user.id, draft.captainData[user.id]), teamSize);
-    if (price > maxAllowed) return; // double check budget constraint
     draft.auction.bid = price;
     draft.auction.leaderId = user.id;
     draft.auction.history.unshift({ type: 'bid', text: `${state.captains.find((c) => c.id === user.id)?.handle || state.captains.find((c) => c.id === user.id)?.tag || ''} bid ${price}` });
   });
   const rivalBid = () => updateState((draft) => {
-    const rivalPrice = getNextBidPrice(draft.auction.bid, draft.auction.leaderId);
-    const rivals = state.captains.filter((captain) => {
-      const capData = draft.captainData[captain.id] || { budget: 0, squad: [] };
-      const maxAllowed = getMaxAllowedBid(capData.budget, squadSize(captain.id, capData), teamSize);
-      return (
-        captain.id !== user.id
-        && rivalPrice <= maxAllowed
-        && squadSize(captain.id, capData) < teamSize
-      );
-    });
+    const rivalPrice = draft.auction.leaderId ? draft.auction.bid + 25 : 50;
+    const rivals = state.captains.filter((captain) => (
+      captain.id !== user.id
+      && draft.captainData[captain.id].budget >= rivalPrice
+      && squadSize(captain.id, draft.captainData[captain.id]) < teamSize
+    ));
     if (!rivals.length) return;
     const rival = rivals[Math.floor(Math.random() * rivals.length)];
     draft.auction.bid = rivalPrice;
@@ -2221,7 +1590,7 @@ function BiddingRoom({ user, state, updateState, onReset }) {
 
   return (
     <div className="auction-stage">
-      <div className="auction-topline"><span><span className="live-dot" /> Live auction</span><strong>Lot 01</strong><div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}><span>Minimum raise · {auction.bid >= 200 ? '100' : '25'}</span>{onReset && <button className="ghost btn-danger btn-xs" onClick={onReset}><RotateCcw size={13} /> Reset auction</button>}</div></div>
+      <div className="auction-topline"><span><span className="live-dot" /> Live auction</span><strong>Lot 01</strong><div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}><span>Minimum raise · 25</span>{onReset && <button className="ghost btn-danger btn-xs" onClick={onReset}><RotateCcw size={13} /> Reset auction</button>}</div></div>
       <div className="auction-layout">
         <section className="lot-card">
           <div className="lot-stripe" />
@@ -2240,21 +1609,8 @@ function BiddingRoom({ user, state, updateState, onReset }) {
           <button className="bid-button" onClick={bid} disabled={!canAfford || auction.leaderId === user.id}>
             <span>Place bid</span><strong><Coins size={22} /> {nextBid}</strong>
           </button>
-          <p className="bid-helper">
-            You have <b>{money(state.captainData[user.id].budget)}</b> coins available.
-            {squadFull ? (
-              <>
-                <br />
-                <b>Your squad is full.</b>
-              </>
-            ) : (
-              <>
-                <br />
-                Max allowed bid: <b>{maxAllowedBid}</b> coins (reserving <b>{reservedCoins}</b> for the other {teamSize - squadSize(user.id, state.captainData[user.id]) - 1} players).
-              </>
-            )}
-          </p>
-          <div className="demo-controls"><span>Host controls moved to organizer dashboard</span></div>
+          <p className="bid-helper">You have <b>{money(state.captainData[user.id].budget)}</b> coins available.{squadFull && <><br /><b>Your squad is full.</b></>}</p>
+          <div className="demo-controls"><span>Prototype controls</span><button onClick={rivalBid}>Simulate rival +25</button><button onClick={sell} disabled={!leader}>Close &amp; award player</button><button onClick={passLot}>Pass · no sale</button></div>
         </section>
         <aside className="standings-card">
           <h2>Captain budgets</h2>
@@ -2298,34 +1654,17 @@ function AuctionCompleteScreen({ state, goTournament }) {
           const club = getClubInfo(captain);
           const data = state.captainData[captain.id] || { squad: [], budget: 0 };
           const squadPlayers = (data.squad || []).map((id) => state.players.find((p) => p.id === id)).filter(Boolean);
-          const captainPlayer = state.players.find((p) => 
-            p.id === captain.id ||
-            p.name.toLowerCase() === captain.name.toLowerCase() || 
-            (p.tag && p.tag.toLowerCase() === (captain.handle || '').toLowerCase())
-          );
-          const captainTag = captain.handle || captain.tag || captain.name;
-          const captainPosition = captainPlayer ? captainPlayer.primary : 'Captain';
-          const captainAvatarPerson = captainPlayer || captain;
           return (
             <div className="complete-squad-card" key={captain.id}>
               <div className="complete-squad-head">
-                <ClubMark club={club} size="md" />
+                <ClubMark club={club} size="sm" />
                 <span><strong>{club.name}</strong><small>{money(data.budget)} coins remaining</small></span>
               </div>
               <div className="complete-squad-list">
-                <div key={captain.id}>
-                  <Avatar person={captainAvatarPerson} size="sm" />
-                  <span>
-                    <strong style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                      {captainTag}
-                      <Crown size={12} className="captain-crown" style={{ color: '#ffd700', fill: '#ffd700' }} />
-                    </strong>
-                    <small>{captainPosition}</small>
-                  </span>
-                </div>
                 {squadPlayers.map((p) => (
-                  <div key={p.id}><Avatar person={p} size="sm" /><span><strong>{p.tag}</strong><small>{p.primary}</small></span></div>
+                  <div key={p.id}><Avatar person={p} size="xs" /><span><strong>{p.tag}</strong><small>{p.primary}</small></span></div>
                 ))}
+                {!squadPlayers.length && <p style={{ color: 'var(--muted)', fontSize: '9px', margin: '4px 0' }}>No auction picks</p>}
               </div>
             </div>
           );
@@ -2368,110 +1707,13 @@ function AuctionRoom({ startingBudget, goTournament, ...props }) {
   );
 }
 
-function TournamentHub({ user, state, updateState, isOrganizer = false }) {
+function TournamentHub({ user, state, updateState }) {
   const competition = state.competition || createCompetition();
   const standings = calculateStandings(state.captains, competition.matches || []);
-  const nextMatch = user.role === 'captain'
-    ? (competition.matches || []).find((match) => match.status !== 'completed' && (match.homeId === user.id || match.awayId === user.id))
-    : (competition.matches || []).find((match) => match.status !== 'completed');
-  const hasPendingMatches = (competition.matches || []).some((match) => match.status !== 'completed');
-  const opponentId = (nextMatch && user.role === 'captain') ? (nextMatch.homeId === user.id ? nextMatch.awayId : nextMatch.homeId) : null;
-  const opponentCaptain = opponentId ? state.captains.find(c => c.id === opponentId) : null;
-  const opponentClub = opponentCaptain ? getClubInfo(opponentCaptain) : null;
-  const isHome = nextMatch ? nextMatch.homeId === user.id : false;
-
+  const nextMatch = (competition.matches || []).find((match) => match.status !== 'completed');
   const [matchDate, setMatchDate] = useState(nextMatch?.scheduledAt || suggestKickoffDate());
 
   useEffect(() => { setMatchDate(nextMatch?.scheduledAt || suggestKickoffDate()); }, [nextMatch?.id, nextMatch?.scheduledAt]);
-
-  const [showScoreEntry, setShowScoreEntry] = useState(false);
-  const [homeScoreInput, setHomeScoreInput] = useState('');
-  const [awayScoreInput, setAwayScoreInput] = useState('');
-  const [homeScorersInput, setHomeScorersInput] = useState([]);
-  const [awayScorersInput, setAwayScorersInput] = useState([]);
-
-  const [editingMatchId, setEditingMatchId] = useState(null);
-  const [editMatchDate, setEditMatchDate] = useState('');
-  const [editHomeScore, setEditHomeScore] = useState('');
-  const [editAwayScore, setEditAwayScore] = useState('');
-  const [editHomeScorers, setEditHomeScorers] = useState([]);
-  const [editAwayScorers, setEditAwayScorers] = useState([]);
-
-  const getTeamRoster = (teamId) => {
-    const captain = state.captains.find((c) => c.id === teamId);
-    const squadIds = state.captainData[teamId]?.squad || [];
-    const squadPlayers = squadIds.map((id) => state.players.find((p) => p.id === id)).filter(Boolean);
-    const list = [];
-    if (captain) {
-      list.push({ id: `captain:${captain.id}`, tag: captain.handle || captain.tag || 'Captain' });
-    }
-    squadPlayers.forEach((p) => {
-      list.push({ id: p.id, tag: p.tag });
-    });
-    return list;
-  };
-
-  const saveMatchResult = (matchId, hScore, aScore, hScorers, aScorers) => {
-    updateState((draft) => {
-      const draftCompetition = draft.competition;
-      const match = draftCompetition.matches.find((item) => item.id === matchId);
-      if (!match) return;
-      
-      const homeScore = parseInt(hScore, 10) || 0;
-      const awayScore = parseInt(aScore, 10) || 0;
-      
-      match.homeScore = homeScore;
-      match.awayScore = awayScore;
-      match.status = 'completed';
-      if (!match.scheduledAt) {
-        match.scheduledAt = new Date().toISOString().slice(0, 16);
-      }
-      
-      // Remove existing stats for this match if any (e.g. if re-editing)
-      draftCompetition.playerStats = (draftCompetition.playerStats || []).filter(
-        (stat) => stat.matchId !== matchId
-      );
-      
-      // Add scorers
-      const addGoals = (teamId, scorersList) => {
-        const counts = {};
-        scorersList.forEach((id) => {
-          if (id) counts[id] = (counts[id] || 0) + 1;
-        });
-        Object.entries(counts).forEach(([playerId, goals]) => {
-          let name = 'Player';
-          if (playerId.startsWith('captain:')) {
-            const capId = playerId.replace('captain:', '');
-            const cap = draft.captains.find((c) => c.id === capId);
-            name = cap?.handle || cap?.tag || 'Captain';
-          } else {
-            const p = draft.players.find((item) => item.id === playerId);
-            name = p?.tag || p?.name || 'Player';
-          }
-          draftCompetition.playerStats.push({
-            matchId,
-            teamId,
-            playerId,
-            name,
-            goals
-          });
-        });
-      };
-      
-      addGoals(match.homeId, hScorers);
-      addGoals(match.awayId, aScorers);
-      
-      // Progress competition phase
-      const leagueMatches = draftCompetition.matches.filter((item) => item.stage === 'league');
-      if (leagueMatches.length && leagueMatches.every((item) => item.status === 'completed') && !draftCompetition.matches.some((item) => item.stage === 'finals')) {
-        const finalStandings = calculateStandings(draft.captains, draftCompetition.matches);
-        draftCompetition.matches.push(...createFinalFixtures(finalStandings));
-        draftCompetition.phase = 'finals';
-      } else if (match.id === 'championship-final') {
-        draftCompetition.phase = 'complete';
-      }
-    });
-  };
 
   const clubFor = (teamId) => getClubInfo(state.captains.find((captain) => captain.id === teamId));
   const startCompetition = (draftCompetition) => {
@@ -2488,6 +1730,8 @@ function TournamentHub({ user, state, updateState, isOrganizer = false }) {
     } else {
       if (draft.captainData[user.id]) draft.captainData[user.id].squadConfirmed = true;
     }
+    const allReady = draft.captains.every((captain) => draft.captainData[captain.id]?.squadConfirmed);
+    if (allReady && draft.competition.phase === 'ready') startCompetition(draft.competition);
   });
   const resetFixtures = () => {
     if (!window.confirm('Reset official fixtures to opening day? This clears match dates, results, standings, and scorer stats.')) return;
@@ -2498,8 +1742,6 @@ function TournamentHub({ user, state, updateState, isOrganizer = false }) {
       draft.competition.matches = createLeagueFixtures(draft.captains.map((captain) => captain.id));
       draft.competition.playerStats = [];
     });
-    setShowScoreEntry(false);
-    setEditingMatchId(null);
   };
   const scheduleMatch = () => {
     if (!nextMatch || !matchDate) return;
@@ -2548,12 +1790,11 @@ function TournamentHub({ user, state, updateState, isOrganizer = false }) {
 
   if (competition.phase === 'ready') {
     const readyIds = new Set(state.captains.filter((c) => state.captainData[c.id]?.squadConfirmed).map((c) => c.id));
-    const allReady = state.captains.every((captain) => state.captainData[captain.id]?.squadConfirmed);
     return (
       <>
         <header className="page-header"><div><span className="page-kicker">Auction complete</span><h1>Lock in your club.</h1><p>All captains must confirm their squad before Matchmaker releases the official tournament path.</p></div><span className="status-pill good"><BadgeCheck size={14} /> Squads locked</span></header>
         <section className="panel ready-room">
-          <div className="ready-room-head"><div><span className="section-step">01</span><h2>Captain ready check</h2><p>{readyIds.size} of {state.captains.length} squads confirmed</p></div></div>
+          <div className="ready-room-head"><div><span className="section-step">01</span><h2>Captain ready check</h2><p>{readyIds.size} of {state.captains.length} squads confirmed</p></div><button className="ghost" onClick={() => setReady(true)}><Sparkles size={16} /> Make everyone ready · Demo</button></div>
           <div className="ready-club-grid">
             {state.captains.map((captain) => {
               const club = getClubInfo(captain);
@@ -2567,16 +1808,7 @@ function TournamentHub({ user, state, updateState, isOrganizer = false }) {
               );
             })}
           </div>
-          <div className="ready-actions">
-            {allReady ? (
-              <span className="status-pill good"><BadgeCheck size={14} /> Waiting for organizer</span>
-            ) : (
-              <button className="primary" disabled={readyIds.has(user.id)} onClick={() => setReady(false)}>
-                <BadgeCheck size={17} /> {readyIds.has(user.id) ? 'Squad confirmed' : 'I am ready'}
-              </button>
-            )}
-            <p>Scrims are always open and never affect official standings.</p>
-          </div>
+          <div className="ready-actions"><button className="primary" disabled={readyIds.has(user.id)} onClick={() => setReady(false)}><BadgeCheck size={17} /> {readyIds.has(user.id) ? 'Squad confirmed' : 'I am ready'}</button><p>Scrims are always open and never affect official standings.</p></div>
         </section>
         <section className="format-explainer"><div><strong>01</strong><span><b>Round robin</b><small>Every club faces all three rivals once.</small></span></div><ArrowRight size={18} /><div><strong>02</strong><span><b>Shield match</b><small>3rd and 4th settle placement.</small></span></div><ArrowRight size={18} /><div><strong>03</strong><span><b>Championship Final</b><small>Top two play for the title.</small></span></div></section>
       </>
@@ -2585,412 +1817,16 @@ function TournamentHub({ user, state, updateState, isOrganizer = false }) {
 
   return (
     <>
-      <header className="page-header tournament-hub-header"><div><span className="page-kicker">Matchmaker · {competition.phase === 'finals' ? 'Finals' : competition.phase === 'complete' ? 'Complete' : 'League stage'}</span><h1>The road to the trophy.</h1><p>Official fixtures count toward standings. Clubs may arrange unlimited scrims between them.</p></div><div className="tournament-header-actions"><span className="status-pill good"><Radio size={14} /> Matchmaker connected</span>{isOrganizer && <button className="ghost btn-danger" onClick={resetFixtures}><RotateCcw size={16} /> Reset fixtures · Test</button>}</div></header>
-      {(isOrganizer || user.role === 'player') && (
-        <div className="tournament-metric-grid"><div><span>Official matches</span><strong>{completedMatches.length}/{competition.matches.length}</strong></div><div><span>Total goals</span><strong>{totalGoals}</strong></div><div><span>League leader</span><strong>{standings[0] ? clubFor(standings[0].teamId).name : '—'}</strong></div><div><span>Tightest defense</span><strong>{tightestDefense ? `${clubFor(tightestDefense.teamId).name} · ${tightestDefense.ga} GA` : '—'}</strong></div></div>
-      )}
+      <header className="page-header tournament-hub-header"><div><span className="page-kicker">Matchmaker · {competition.phase === 'finals' ? 'Finals' : competition.phase === 'complete' ? 'Complete' : 'League stage'}</span><h1>The road to the trophy.</h1><p>Official fixtures count toward standings. Clubs may arrange unlimited scrims between them.</p></div><div className="tournament-header-actions"><span className="status-pill good"><Radio size={14} /> Matchmaker connected</span><button className="ghost btn-danger" onClick={resetFixtures}><RotateCcw size={16} /> Reset fixtures · Test</button></div></header>
+      <div className="tournament-metric-grid"><div><span>Official matches</span><strong>{completedMatches.length}/{competition.matches.length}</strong></div><div><span>Total goals</span><strong>{totalGoals}</strong></div><div><span>League leader</span><strong>{standings[0] ? clubFor(standings[0].teamId).name : '—'}</strong></div><div><span>Tightest defense</span><strong>{tightestDefense ? `${clubFor(tightestDefense.teamId).name} · ${tightestDefense.ga} GA` : '—'}</strong></div></div>
       <div className="tournament-hub-grid">
         <section className="panel standings-table"><div className="panel-head"><div><span className="section-step">01</span><h2>League table</h2></div><Trophy size={18} /></div><div className="standings-row standings-head"><span>#</span><span>Club</span><span>P</span><span>GD</span><span>Pts</span></div>{standings.map((row, index) => { const club = clubFor(row.teamId); return <div className="standings-row" key={row.teamId}><b>{index + 1}</b><span><ClubMark club={club} size="xs" /><strong>{club.name}</strong></span><span>{row.played}</span><span>{row.gf - row.ga > 0 ? '+' : ''}{row.gf - row.ga}</span><strong>{row.points}</strong></div>; })}</section>
-        <aside className="panel next-match-card">
-          <span className="page-kicker">Matchmaker recommends next</span>
-          {nextMatch ? (
-            <>
-              <div className="match-stage">{nextMatch.label}</div>
-              <div className="match-versus">
-                <div>
-                  <ClubMark club={getClubInfo(state.captains.find(c => c.id === nextMatch.homeId))} size="lg" />
-                  <strong>{getClubInfo(state.captains.find(c => c.id === nextMatch.homeId)).name}</strong>
-                  <span style={{ fontSize: '10px', color: 'var(--muted)', display: 'block', marginTop: '2px' }}>Home</span>
-                </div>
-                <b>VS</b>
-                <div>
-                  <ClubMark club={getClubInfo(state.captains.find(c => c.id === nextMatch.awayId))} size="lg" />
-                  <strong>{getClubInfo(state.captains.find(c => c.id === nextMatch.awayId)).name}</strong>
-                  <span style={{ fontSize: '10px', color: 'var(--muted)', display: 'block', marginTop: '2px' }}>Away</span>
-                </div>
-              </div>
-              
-              {isOrganizer ? (
-                !showScoreEntry ? (
-                  <>
-                    <label>
-                      <span>Captains agree on kickoff</span>
-                      <input type="datetime-local" value={matchDate} onInput={(event) => setMatchDate(event.currentTarget.value)} />
-                    </label>
-                    <button className="secondary full" onClick={scheduleMatch} disabled={!matchDate}>
-                      {nextMatch.status === 'scheduled' ? 'Update match date' : 'Confirm match date'}
-                    </button>
-                    {nextMatch.scheduledAt && (
-                      <>
-                        <p className="scheduled-note" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', margin: '10px 0 0' }}>
-                          <CheckCircle2 size={14} /> Scheduled · {new Date(nextMatch.scheduledAt).toLocaleString()}
-                        </p>
-                        <button className="primary full" style={{ marginTop: '12px' }} onClick={() => {
-                          setShowScoreEntry(true);
-                          setHomeScoreInput('');
-                          setAwayScoreInput('');
-                          setHomeScorersInput([]);
-                          setAwayScorersInput([]);
-                        }}>
-                          <Goal size={16} /> Enter Match Score
-                        </button>
-                      </>
-                    )}
-                    <button className="ghost full matchmaker-demo" onClick={simulateMatchmakerResult}><Sparkles size={16} /> Simulate Matchmaker result</button>
-                  </>
-                ) : (
-                  <div className="score-entry-form" style={{ display: 'grid', gap: '12px', textAlign: 'left', marginTop: '12px', padding: '16px', background: 'rgba(255,255,255,0.02)', borderRadius: '10px', border: '1px solid var(--line)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: '11px', fontWeight: 'bold', color: 'var(--lime)' }}>Enter Match Score</span>
-                      <button className="ghost btn-xs" style={{ padding: '2px 8px' }} onClick={() => setShowScoreEntry(false)}>Cancel</button>
-                    </div>
-                    
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                      <label style={{ display: 'grid', gap: '4px' }}>
-                        <span style={{ fontSize: '9px', color: 'var(--muted)' }}>{clubFor(nextMatch.homeId).name} Goals</span>
-                        <input 
-                          type="number" 
-                          min="0" 
-                          placeholder="0" 
-                          value={homeScoreInput} 
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setHomeScoreInput(val);
-                            const count = parseInt(val, 10) || 0;
-                            const roster = getTeamRoster(nextMatch.homeId);
-                            setHomeScorersInput(prev => {
-                              const next = [...prev];
-                              while (next.length < count) next.push(roster[0]?.id || '');
-                              return next.slice(0, count);
-                            });
-                          }}
-                          style={{ padding: '8px', background: '#0c1511', border: '1px solid var(--line)', color: 'var(--ink)', borderRadius: '6px', fontSize: '11px' }}
-                        />
-                      </label>
-                      
-                      <label style={{ display: 'grid', gap: '4px' }}>
-                        <span style={{ fontSize: '9px', color: 'var(--muted)' }}>{clubFor(nextMatch.awayId).name} Goals</span>
-                        <input 
-                          type="number" 
-                          min="0" 
-                          placeholder="0" 
-                          value={awayScoreInput} 
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setAwayScoreInput(val);
-                            const count = parseInt(val, 10) || 0;
-                            const roster = getTeamRoster(nextMatch.awayId);
-                            setAwayScorersInput(prev => {
-                              const next = [...prev];
-                              while (next.length < count) next.push(roster[0]?.id || '');
-                              return next.slice(0, count);
-                            });
-                          }}
-                          style={{ padding: '8px', background: '#0c1511', border: '1px solid var(--line)', color: 'var(--ink)', borderRadius: '6px', fontSize: '11px' }}
-                        />
-                      </label>
-                    </div>
-                    
-                    {homeScorersInput.length > 0 && (
-                      <div style={{ display: 'grid', gap: '4px' }}>
-                        <span style={{ fontSize: '8px', color: 'var(--muted)' }}>{clubFor(nextMatch.homeId).name} Scorers</span>
-                        {homeScorersInput.map((scorerId, idx) => (
-                          <select 
-                            key={idx} 
-                            value={scorerId} 
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setHomeScorersInput(prev => {
-                                const next = [...prev];
-                                next[idx] = val;
-                                return next;
-                              });
-                            }}
-                            style={{ padding: '6px', background: '#0c1511', border: '1px solid var(--line)', color: 'var(--ink)', borderRadius: '6px', fontSize: '10px' }}
-                          >
-                            {getTeamRoster(nextMatch.homeId).map(p => <option key={p.id} value={p.id}>{p.tag}</option>)}
-                          </select>
-                        ))}
-                      </div>
-                    )}
-                    
-                    {awayScorersInput.length > 0 && (
-                      <div style={{ display: 'grid', gap: '4px' }}>
-                        <span style={{ fontSize: '8px', color: 'var(--muted)' }}>{clubFor(nextMatch.awayId).name} Scorers</span>
-                        {awayScorersInput.map((scorerId, idx) => (
-                          <select 
-                            key={idx} 
-                            value={scorerId} 
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setAwayScorersInput(prev => {
-                                const next = [...prev];
-                                next[idx] = val;
-                                return next;
-                              });
-                            }}
-                            style={{ padding: '6px', background: '#0c1511', border: '1px solid var(--line)', color: 'var(--ink)', borderRadius: '6px', fontSize: '10px' }}
-                          >
-                            {getTeamRoster(nextMatch.awayId).map(p => <option key={p.id} value={p.id}>{p.tag}</option>)}
-                          </select>
-                        ))}
-                      </div>
-                    )}
-                    
-                    <button 
-                      className="primary full" 
-                      onClick={() => {
-                        if (homeScoreInput === '' || awayScoreInput === '') {
-                          alert('Please enter scores for both teams.');
-                          return;
-                        }
-                        saveMatchResult(nextMatch.id, homeScoreInput, awayScoreInput, homeScorersInput, awayScorersInput);
-                        setShowScoreEntry(false);
-                      }}
-                    >
-                      Submit Result
-                    </button>
-                  </div>
-                )
-              ) : (
-                <div style={{ fontSize: '11px', color: 'var(--muted)', textAlign: 'center', padding: '16px', background: 'rgba(255,255,255,0.01)', border: '1px solid var(--line)', borderRadius: '8px', marginTop: '10px' }}>
-                  <Clock3 size={15} style={{ verticalAlign: 'middle', marginRight: '6px' }} />
-                  <strong>
-                    {nextMatch.status === 'scheduled' 
-                      ? `Kickoff: ${new Date(nextMatch.scheduledAt).toLocaleString([], {month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit'})}`
-                      : 'Kickoff: Date TBD (Waiting for organizer)'}
-                  </strong>
-                </div>
-              )}
-              {user.role === 'captain' && opponentClub && (
-                <div style={{ marginTop: '12px', padding: '10px', background: 'rgba(217, 255, 99, 0.04)', border: '1px solid rgba(217, 255, 99, 0.15)', borderRadius: '8px', fontSize: '11px', textAlign: 'center' }}>
-                  <strong>Opponent:</strong> {opponentClub.name} <span style={{ color: 'var(--muted)' }}>({isHome ? 'Home' : 'Away'})</span>
-                </div>
-              )}
-            </>
-          ) : (
-            user.role === 'captain' && hasPendingMatches ? (
-              <div className="tournament-complete" style={{ padding: '24px 12px' }}>
-                <Clock3 size={36} style={{ color: 'var(--muted)', marginBottom: '8px' }} />
-                <h2>Fixtures completed</h2>
-                <p>Waiting for other league matches to finish.</p>
-              </div>
-            ) : (
-              <div className="tournament-complete"><Crown size={42} /><h2>Tournament complete</h2><p>All official fixtures have been reported.</p></div>
-            )
-          )}
-        </aside>
+        <aside className="panel next-match-card"><span className="page-kicker">Matchmaker recommends next</span>{nextMatch ? <><div className="match-stage">{nextMatch.label}</div><div className="match-versus"><div><ClubMark club={clubFor(nextMatch.homeId)} size="lg" /><strong>{clubFor(nextMatch.homeId).name}</strong></div><b>VS</b><div><ClubMark club={clubFor(nextMatch.awayId)} size="lg" /><strong>{clubFor(nextMatch.awayId).name}</strong></div></div><label><span>Captains agree on kickoff</span><input type="datetime-local" value={matchDate} onInput={(event) => setMatchDate(event.currentTarget.value)} /></label><button className="secondary full" onClick={scheduleMatch} disabled={!matchDate}><CalendarDays size={16} /> {nextMatch.status === 'scheduled' ? 'Update match date' : 'Confirm match date'}</button>{nextMatch.scheduledAt && <p className="scheduled-note"><CheckCircle2 size={14} /> Scheduled · {new Date(nextMatch.scheduledAt).toLocaleString()}</p>}<button className="ghost full matchmaker-demo" onClick={simulateMatchmakerResult}><Sparkles size={16} /> Simulate Matchmaker result</button></> : <div className="tournament-complete"><Crown size={42} /><h2>Tournament complete</h2><p>All official fixtures have been reported.</p></div>}</aside>
       </div>
-      {(isOrganizer || user.role === 'player') && (
-        <div className="tournament-lower-grid">
+      <div className="tournament-lower-grid">
         <section className="panel top-scorers"><div className="panel-head"><div><span className="section-step">02</span><h2>Club top scorers</h2></div><Goal size={18} /></div>{state.captains.map((captain) => { const club = getClubInfo(captain); return <div key={captain.id}><ClubMark club={club} size="xs" /><span><strong>{club.name}</strong><small>{topScorerFor(captain.id)}</small></span></div>; })}</section>
-        <section className="panel fixture-list">
-          <div className="panel-head"><div><span className="section-step">03</span><h2>Official fixture path</h2></div><CalendarDays size={18} /></div>
-          {(competition.matches || []).map((match) => {
-            const isEditing = editingMatchId === match.id;
-            const isCurrent = match.id === nextMatch?.id;
-            
-            if (isEditing) {
-              const homeRoster = getTeamRoster(match.homeId);
-              const awayRoster = getTeamRoster(match.awayId);
-              
-              return (
-                <div className="fixture-edit-form" key={match.id} style={{ display: 'grid', gap: '12px', padding: '16px', background: 'rgba(255,255,255,0.03)', borderRadius: '10px', border: '1px solid var(--line)', margin: '10px 0' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <strong style={{ fontSize: '12px' }}>Edit: {match.label}</strong>
-                    <button className="ghost btn-xs" style={{ padding: '2px 8px' }} onClick={() => setEditingMatchId(null)}>Cancel</button>
-                  </div>
-                  
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '8px' }}>
-                    <label style={{ display: 'grid', gap: '4px' }}>
-                      <span style={{ fontSize: '9px', color: 'var(--muted)' }}>Kickoff Date & Time</span>
-                      <input 
-                        type="datetime-local" 
-                        value={editMatchDate} 
-                        onChange={(e) => setEditMatchDate(e.target.value)} 
-                        style={{ padding: '8px', background: '#0c1511', border: '1px solid var(--line)', color: 'var(--ink)', borderRadius: '6px', fontSize: '11px' }}
-                      />
-                    </label>
-                  </div>
-                  
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', gap: '12px' }}>
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
-                        <ClubMark club={clubFor(match.homeId)} size="xs" />
-                        <span style={{ fontSize: '11px', fontWeight: 'bold' }}>{clubFor(match.homeId).name}</span>
-                      </div>
-                      <input 
-                        type="number" 
-                        min="0" 
-                        placeholder="Goals" 
-                        value={editHomeScore} 
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setEditHomeScore(val);
-                          const count = parseInt(val, 10) || 0;
-                          setEditHomeScorers(prev => {
-                            const next = [...prev];
-                            while (next.length < count) next.push(homeRoster[0]?.id || '');
-                            return next.slice(0, count);
-                          });
-                        }}
-                        style={{ width: '100%', padding: '8px', background: '#0c1511', border: '1px solid var(--line)', color: 'var(--ink)', borderRadius: '6px', fontSize: '11px' }}
-                      />
-                    </div>
-                    <b style={{ color: 'var(--muted)', fontSize: '11px' }}>vs</b>
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
-                        <ClubMark club={clubFor(match.awayId)} size="xs" />
-                        <span style={{ fontSize: '11px', fontWeight: 'bold' }}>{clubFor(match.awayId).name}</span>
-                      </div>
-                      <input 
-                        type="number" 
-                        min="0" 
-                        placeholder="Goals" 
-                        value={editAwayScore} 
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setEditAwayScore(val);
-                          const count = parseInt(val, 10) || 0;
-                          setEditAwayScorers(prev => {
-                            const next = [...prev];
-                            while (next.length < count) next.push(awayRoster[0]?.id || '');
-                            return next.slice(0, count);
-                          });
-                        }}
-                        style={{ width: '100%', padding: '8px', background: '#0c1511', border: '1px solid var(--line)', color: 'var(--ink)', borderRadius: '6px', fontSize: '11px' }}
-                      />
-                    </div>
-                  </div>
-
-                  {editHomeScorers.length > 0 && (
-                    <div style={{ display: 'grid', gap: '4px' }}>
-                      <span style={{ fontSize: '9px', color: 'var(--muted)' }}>{clubFor(match.homeId).name} Scorers</span>
-                      {editHomeScorers.map((scorerId, idx) => (
-                        <select 
-                          key={idx} 
-                          value={scorerId} 
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setEditHomeScorers(prev => {
-                              const next = [...prev];
-                              next[idx] = val;
-                              return next;
-                            });
-                          }}
-                          style={{ padding: '6px', background: '#0c1511', border: '1px solid var(--line)', color: 'var(--ink)', borderRadius: '6px', fontSize: '11px' }}
-                        >
-                          {homeRoster.map(p => <option key={p.id} value={p.id}>{p.tag}</option>)}
-                        </select>
-                      ))}
-                    </div>
-                  )}
-
-                  {editAwayScorers.length > 0 && (
-                    <div style={{ display: 'grid', gap: '4px' }}>
-                      <span style={{ fontSize: '9px', color: 'var(--muted)' }}>{clubFor(match.awayId).name} Scorers</span>
-                      {editAwayScorers.map((scorerId, idx) => (
-                        <select 
-                          key={idx} 
-                          value={scorerId} 
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setEditAwayScorers(prev => {
-                              const next = [...prev];
-                              next[idx] = val;
-                              return next;
-                            });
-                          }}
-                          style={{ padding: '6px', background: '#0c1511', border: '1px solid var(--line)', color: 'var(--ink)', borderRadius: '6px', fontSize: '11px' }}
-                        >
-                          {awayRoster.map(p => <option key={p.id} value={p.id}>{p.tag}</option>)}
-                        </select>
-                      ))}
-                    </div>
-                  )}
-
-                  <button 
-                    className="primary full" 
-                    onClick={() => {
-                      if (editHomeScore !== '' && editAwayScore !== '') {
-                        saveMatchResult(match.id, editHomeScore, editAwayScore, editHomeScorers, editAwayScorers);
-                      }
-                      updateState((draft) => {
-                        const m = draft.competition.matches.find(item => item.id === match.id);
-                        if (m) {
-                          m.scheduledAt = editMatchDate;
-                          if (m.status !== 'completed') {
-                            m.status = editMatchDate ? 'scheduled' : 'pending';
-                          }
-                        }
-                      });
-                      setEditingMatchId(null);
-                    }}
-                  >
-                    Save Fixture Details
-                  </button>
-                </div>
-              );
-            }
-            
-            return (
-              <div className={isCurrent ? 'current' : ''} key={match.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 7px', borderTop: '1px solid var(--line)' }}>
-                <div style={{ flex: '1', display: 'grid', gridTemplateColumns: '95px 1fr', gap: '10px', alignItems: 'center' }}>
-                  <span style={{ fontSize: '8px', color: 'var(--muted)' }}>{match.label}</span>
-                  <strong style={{ fontSize: '10px' }}>
-                    {clubFor(match.homeId).name} <span style={{fontSize:'8px', color:'var(--muted)', fontWeight:'normal'}}>(H)</span> <b>{match.status === 'completed' ? `${match.homeScore}–${match.awayScore}` : 'vs'}</b> {clubFor(match.awayId).name} <span style={{fontSize:'8px', color:'var(--muted)', fontWeight:'normal'}}>(A)</span>
-                  </strong>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <small style={{ fontSize: '8px', color: 'var(--muted)', textAlign: 'right' }}>
-                    {match.status === 'completed' ? 'Final' : match.scheduledAt ? new Date(match.scheduledAt).toLocaleString([], {month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit'}) : 'Date TBD'}
-                  </small>
-                  {isOrganizer && (
-                    <button 
-                      className="ghost icon-only" 
-                      style={{ width: '28px', height: '28px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }} 
-                      title="Edit match details"
-                      onClick={() => {
-                        setEditingMatchId(match.id);
-                        setEditMatchDate(match.scheduledAt || '');
-                        setEditHomeScore(match.homeScore !== null ? match.homeScore : '');
-                        setEditAwayScore(match.awayScore !== null ? match.awayScore : '');
-                        
-                        const matchStats = competition.playerStats || [];
-                        const homeStats = matchStats.filter(s => s.matchId === match.id && s.teamId === match.homeId);
-                        const awayStats = matchStats.filter(s => s.matchId === match.id && s.teamId === match.awayId);
-                        
-                        const hScorers = [];
-                        homeStats.forEach(s => {
-                          for (let i = 0; i < s.goals; i++) hScorers.push(s.playerId);
-                        });
-                        const aScorers = [];
-                        awayStats.forEach(s => {
-                          for (let i = 0; i < s.goals; i++) aScorers.push(s.playerId);
-                        });
-                        
-                        const homeRoster = getTeamRoster(match.homeId);
-                        const awayRoster = getTeamRoster(match.awayId);
-                        
-                        const hScoreVal = match.homeScore || 0;
-                        while (hScorers.length < hScoreVal) hScorers.push(homeRoster[0]?.id || '');
-                        const aScoreVal = match.awayScore || 0;
-                        while (aScorers.length < aScoreVal) aScorers.push(awayRoster[0]?.id || '');
-                        
-                        setEditHomeScorers(hScorers);
-                        setEditAwayScorers(aScorers);
-                      }}
-                    >
-                      <Pencil size={11} />
-                    </button>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </section>
+        <section className="panel fixture-list"><div className="panel-head"><div><span className="section-step">03</span><h2>Official fixture path</h2></div><CalendarDays size={18} /></div>{(competition.matches || []).map((match) => <div className={match.id === nextMatch?.id ? 'current' : ''} key={match.id}><span>{match.label}</span><strong>{clubFor(match.homeId).name} <b>{match.status === 'completed' ? `${match.homeScore}–${match.awayScore}` : 'vs'}</b> {clubFor(match.awayId).name}</strong><small>{match.status === 'completed' ? 'Final' : match.scheduledAt ? new Date(match.scheduledAt).toLocaleString() : 'Date TBD'}</small></div>)}</section>
       </div>
-      )}
     </>
   );
 }
@@ -3068,64 +1904,36 @@ function ClubSettings({ user, state, updateState }) {
   );
 }
 
-function PlayerProfile({ user, state, updateState, showPool, editable = true }) {
-  const player = state.players.find((item) => item.id === user.id) || (state.captains || captains).find((item) => item.id === user.id);
-  const [form, setForm] = useState(() => {
-    if (!player) return { name: 'Captain', tag: 'Captain', primary: 'CM', secondary: 'CM', style: 'Utility', traits: [], color: '#a1a8ff', initials: 'C' };
-    return {
-      ...player,
-      tag: player.tag || player.handle || player.name || 'Captain',
-      primary: player.primary || 'CM',
-      secondary: player.secondary || 'CM',
-      style: player.style || 'Utility',
-      traits: player.traits || [],
-      color: player.color || '#a1a8ff',
-      initials: player.initials || 'C'
-    };
-  });
+function PlayerProfile({ user, state, updateState, showPool }) {
+  const player = state.players.find((item) => item.id === user.id);
+  const [form, setForm] = useState(player);
   const [saved, setSaved] = useState(false);
   const setField = (field, value) => setForm((current) => ({ ...current, [field]: value }));
   const save = () => {
-    if (!editable) return;
-    const completedForm = { ...form, profileComplete: true };
-    updateState((draft) => {
-      draft.players = draft.players.map((item) => item.id === user.id ? completedForm : item);
-      if (draft.tournaments) {
-        draft.tournaments.forEach((t) => {
-          if (t.captains) {
-            t.captains = t.captains.map((c) => {
-              if (c.id === user.id) {
-                return { ...c, name: completedForm.name, handle: completedForm.tag, tag: completedForm.tag };
-              }
-              return c;
-            });
-          }
-        });
-      }
-    });
+    updateState((draft) => { draft.players = draft.players.map((item) => item.id === user.id ? form : item); });
     setSaved(true); setTimeout(() => setSaved(false), 1800);
   };
   return (
     <>
-      <header className="page-header"><div><span className="page-kicker">Player registration</span><h1>Make your case.</h1><p>Captains see this card when they build their shortlist. Keep it honest-ish.</p></div><span className="status-pill good"><BadgeCheck size={14} /> {editable ? 'Registration open' : 'Registration locked'}</span></header>
+      <header className="page-header"><div><span className="page-kicker">Player registration</span><h1>Make your case.</h1><p>Captains see this card when they build their shortlist. Keep it honest-ish.</p></div><span className="status-pill good"><BadgeCheck size={14} /> In the player pool</span></header>
       <div className="profile-layout">
         <section className="panel profile-form">
           <div className="panel-head"><div><span className="section-step">01</span><h2>Your player profile</h2></div><Pencil size={18} /></div>
           <div className="profile-avatar-row"><Avatar person={form} size="xl" /><div><strong>{form.tag}</strong><span>{form.name}</span><small>Profile color and initials are assigned for this demo.</small></div></div>
           <div className="form-grid">
-            <label><span>Display name</span><input disabled={!editable} value={form.name} onChange={(e) => setField('name', e.target.value)} /></label>
-            <label><span>FC gamertag</span><input disabled={!editable} value={form.tag} onChange={(e) => setField('tag', e.target.value)} /></label>
-            <label><span>Primary position</span><select disabled={!editable} value={form.primary} onChange={(e) => setField('primary', e.target.value)}>{POSITIONS.map((p) => <option key={p}>{p}</option>)}</select></label>
-            <label><span>Secondary position</span><select disabled={!editable} value={form.secondary} onChange={(e) => setField('secondary', e.target.value)}>{POSITIONS.map((p) => <option key={p}>{p}</option>)}</select></label>
-            <label className="span-two"><span>Play style</span><select disabled={!editable} value={form.style} onChange={(e) => setField('style', e.target.value)}>{['Creator','Finisher','Anchor','Dribbler','Sweeper','Engine','Winger','Stopper','Playmaker','Utility','Ball winner','Poacher'].map((p) => <option key={p}>{p}</option>)}</select></label>
+            <label><span>Display name</span><input value={form.name} onChange={(e) => setField('name', e.target.value)} /></label>
+            <label><span>FC gamertag</span><input value={form.tag} onChange={(e) => setField('tag', e.target.value)} /></label>
+            <label><span>Primary position</span><select value={form.primary} onChange={(e) => setField('primary', e.target.value)}>{POSITIONS.map((p) => <option key={p}>{p}</option>)}</select></label>
+            <label><span>Secondary position</span><select value={form.secondary} onChange={(e) => setField('secondary', e.target.value)}>{POSITIONS.map((p) => <option key={p}>{p}</option>)}</select></label>
+            <label className="span-two"><span>Play style</span><select value={form.style} onChange={(e) => setField('style', e.target.value)}>{['Creator','Finisher','Anchor','Dribbler','Sweeper','Engine','Winger','Stopper','Playmaker','Utility','Ball winner','Poacher'].map((p) => <option key={p}>{p}</option>)}</select></label>
           </div>
-          <button className="primary" onClick={save} disabled={!editable}>{saved ? <><BadgeCheck size={18} /> Saved to pool</> : <>Save player card <ArrowRight size={18} /></>}</button>
+          <button className="primary" onClick={save}>{saved ? <><BadgeCheck size={18} /> Saved to pool</> : <>Save player card <ArrowRight size={18} /></>}</button>
         </section>
         <aside className="profile-preview">
           <span className="section-step">02</span><h2>Captain preview</h2><p>This is how you appear on every draft board.</p>
-          <PlayerCard player={form} rank={0} onRank={() => {}} hideRankButton={true} />
+          <PlayerCard player={form} rank={0} onRank={() => {}} />
           <div className="profile-tip"><Sparkles size={18} /><span><strong>Quick tip</strong>Flexible positions make you easier to fit into more formations.</span></div>
-          <button className="secondary full" onClick={showPool}><UsersRound size={17} /> See the squads</button>
+          <button className="secondary full" onClick={showPool}><UsersRound size={17} /> See the full player pool</button>
         </aside>
       </div>
     </>
@@ -3133,7 +1941,7 @@ function PlayerProfile({ user, state, updateState, showPool, editable = true }) 
 }
 
 function PlayerPool({ state }) {
-  const soldIds = new Set(Object.values(state.captainData || {}).flatMap((item) => item?.squad || []));
+  const soldIds = Object.values(state.captainData || {}).flatMap((item) => item?.squad || []);
   const getPurchaserClub = (playerId) => {
     const captainId = Object.keys(state.captainData || {}).find(
       (capId) => state.captainData[capId]?.squad?.includes(playerId)
@@ -3142,83 +1950,26 @@ function PlayerPool({ state }) {
     const captainInfo = state.captains?.find((c) => c.id === captainId);
     return captainInfo ? getClubInfo(captainInfo) : null;
   };
-  const undraftedPlayers = state.players.filter((p) => !soldIds.has(p.id));
-
   return (
     <>
       <header className="page-header">
         <div>
           <span className="page-kicker">Tournament lobby</span>
-          <h1>Meet the squads.</h1>
+          <h1>Meet the player pool.</h1>
           <p>{state.players.length} registered players are ready for auction night.</p>
         </div>
       </header>
-      
-      <section className="panel undrafted-pool-panel" style={{ padding: '24px', marginBottom: '28px' }}>
-        <div className="panel-head" style={{ marginBottom: '18px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span className="section-step" style={{ background: 'var(--lime-dark)', color: 'var(--lime)' }}>★</span>
-          <h2>Available Player Pool ({undraftedPlayers.length})</h2>
-        </div>
-        {undraftedPlayers.length > 0 ? (
-          <div className="player-grid">
-            {undraftedPlayers.map((player) => (
-              <PlayerCard
-                key={player.id}
-                player={player}
-                sold={false}
-                soldClub={null}
-                rank={0}
-                onRank={() => {}}
-                hideRankButton={true}
-              />
-            ))}
-          </div>
-        ) : (
-          <p style={{ color: 'var(--muted)', fontSize: '11px', textAlign: 'center', padding: '24px 0' }}>All players have been drafted!</p>
-        )}
-      </section>
-
-      <div className="panel-head" style={{ marginBottom: '18px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <span className="section-step" style={{ background: 'var(--lime-dark)', color: 'var(--lime)' }}>✔</span>
-        <h2>Team Rosters</h2>
-      </div>
-      <div className="complete-squads-grid" style={{ padding: '0 0 24px' }}>
-        {state.captains.map((captain) => {
-          const club = getClubInfo(captain);
-          const data = state.captainData[captain.id] || { squad: [], budget: 0 };
-          const squadPlayers = (data.squad || []).map((id) => state.players.find((p) => p.id === id)).filter(Boolean);
-          const captainPlayer = state.players.find((p) => 
-            p.id === captain.id ||
-            p.name.toLowerCase() === captain.name.toLowerCase() || 
-            (p.tag && p.tag.toLowerCase() === (captain.handle || '').toLowerCase())
-          );
-          const captainTag = captain.handle || captain.tag || captain.name;
-          const captainPosition = captainPlayer ? captainPlayer.primary : 'Captain';
-          const captainAvatarPerson = captainPlayer || captain;
-          return (
-            <div className="complete-squad-card" key={captain.id}>
-              <div className="complete-squad-head">
-                <ClubMark club={club} size="md" />
-                <span><strong>{club.name}</strong><small>{data.squad?.length || 0} players signed</small></span>
-              </div>
-              <div className="complete-squad-list">
-                <div key={captain.id}>
-                  <Avatar person={captainAvatarPerson} size="sm" />
-                  <span>
-                    <strong style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                      {captainTag}
-                      <Crown size={12} className="captain-crown" style={{ color: '#ffd700', fill: '#ffd700' }} />
-                    </strong>
-                    <small>{captainPosition}</small>
-                  </span>
-                </div>
-                {squadPlayers.map((p) => (
-                  <div key={p.id}><Avatar person={p} size="sm" /><span><strong>{p.tag}</strong><small>{p.primary}</small></span></div>
-                ))}
-              </div>
-            </div>
-          );
-        })}
+      <div className="player-grid">
+        {state.players.map((player) => (
+          <PlayerCard
+            key={player.id}
+            player={player}
+            sold={soldIds.includes(player.id)}
+            soldClub={getPurchaserClub(player.id)}
+            rank={0}
+            onRank={() => {}}
+          />
+        ))}
       </div>
     </>
   );
@@ -3231,71 +1982,14 @@ export default function App() {
   const [selectedTournamentId, setSelectedTournamentId] = useState(null);
   const [theme, setTheme] = useState(() => localStorage.getItem('clubhouse-theme') || 'dark');
 
-  // Multi-tab sync channel
-  const channelRef = useRef(null);
-
-  useEffect(() => {
-    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
-      const channel = new BroadcastChannel(SYNC_CHANNEL_KEY);
-      channelRef.current = channel;
-      channel.onmessage = (event) => {
-        const { state: incomingState, type } = event.data;
-        if (type === 'STATE_UPDATE' && incomingState) {
-          setState((current) => {
-            const currentTs = current._sync?.updatedAt || 0;
-            const incomingTs = incomingState._sync?.updatedAt || 0;
-            if (incomingTs > currentTs) {
-              return incomingState;
-            }
-            return current;
-          });
-        }
-      };
-      return () => {
-        channel.close();
-      };
-    }
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    if (channelRef.current && state._sync?.origin === 'local') {
-      const broadcastState = {
-        ...state,
-        _sync: { origin: 'remote', updatedAt: state._sync.updatedAt }
-      };
-      channelRef.current.postMessage({ type: 'STATE_UPDATE', state: broadcastState });
-    }
-  }, [state]);
-
+  useEffect(() => { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }, [state]);
   useEffect(() => { document.documentElement.dataset.theme = theme; localStorage.setItem('clubhouse-theme', theme); }, [theme]);
-
   const updateState = (recipe) => setState((current) => {
-    const draft = structuredClone(current);
-    recipe(draft);
-    draft._sync = { origin: 'local', updatedAt: Date.now() };
-    return draft;
+    const draft = structuredClone(current); recipe(draft); return draft;
   });
-
   const login = (nextUser) => { setUser(nextUser); setSelectedTournamentId(null); setActive(nextUser.role === 'captain' ? 'squad' : 'profile'); };
   const logout = () => { setUser(null); setSelectedTournamentId(null); };
-
-  const registerForTournament = (tournamentId) => {
-    if (!user || user.role !== 'player') return;
-    setState((current) => {
-      const draft = structuredClone(current);
-      const ids = new Set(draft.tournamentPlayerIds[tournamentId] || []);
-      ids.add(user.id);
-      draft.tournamentPlayerIds[tournamentId] = [...ids];
-      draft._sync = { origin: 'local', updatedAt: Date.now() };
-      return draft;
-    });
-    setSelectedTournamentId(tournamentId);
-    setActive('profile');
-  };
-
   const tournament = state.tournaments.find((item) => item.id === selectedTournamentId);
-  const tournamentPhase = getTournamentPhase(tournament);
   const tournamentPlayerIds = state.tournamentPlayerIds[selectedTournamentId] || [];
   const tournamentCaptains = tournament ? (tournament.captains || (tournament.id === 't-friday-night' ? captains : [])) : [];
   const tournamentState = tournament ? {
@@ -3306,7 +2000,6 @@ export default function App() {
     captains: tournamentCaptains,
     teamSize: getTournamentTeamSize(tournament),
   } : null;
-
   const updateTournamentState = (recipe) => setState((current) => {
     const draft = structuredClone(current);
     if (!draft.tournamentCompetitions) draft.tournamentCompetitions = {};
@@ -3317,39 +2010,26 @@ export default function App() {
       players: auctionEligiblePlayers(draft.players.filter((player) => ids.has(player.id)), scopedCaptains),
       captainData: draft.tournamentCaptainData[selectedTournamentId],
       auction: draft.tournamentAuctions[selectedTournamentId],
-      competition: draft.competition || draft.tournamentCompetitions[selectedTournamentId] || createCompetition(),
+      competition: draft.tournamentCompetitions[selectedTournamentId] || createCompetition(),
       captains: scopedCaptains,
       teamSize: getTournamentTeamSize(targetTournament),
     };
     recipe(scoped);
-    if (targetTournament) {
-      targetTournament.captains = scoped.captains;
-    }
     const scopedMap = new Map(scoped.players.map((player) => [player.id, player]));
     draft.players = draft.players.map((player) => scopedMap.get(player.id) || player);
     scoped.players.forEach((player) => { if (!draft.players.some((item) => item.id === player.id)) draft.players.push(player); });
     draft.tournamentCaptainData[selectedTournamentId] = scoped.captainData;
     draft.tournamentAuctions[selectedTournamentId] = scoped.auction;
     draft.tournamentCompetitions[selectedTournamentId] = scoped.competition;
-    draft._sync = { origin: 'local', updatedAt: Date.now() };
     return draft;
   });
-
   const budget = useMemo(() => user?.role === 'captain' && tournamentState ? tournamentState.captainData[user.id]?.budget : 0, [tournamentState, user]);
-
-  const loginPlayers = useMemo(() => {
-    const seedIds = new Set(seedPlayers.map(p => p.id));
-    return state.players.filter(p => {
-      if (seedIds.has(p.id)) return false;
-      return Object.values(state.tournamentPlayerIds).some(playerIds => playerIds.includes(p.id));
-    });
-  }, [state.players, state.tournamentPlayerIds]);
 
   const loginCaptains = useMemo(() => {
     const list = [];
     const seen = new Set();
     state.tournaments.forEach((t) => {
-      if ([PHASES.CAPTAINS, PHASES.AUCTION, PHASES.SQUADS, PHASES.TOURNAMENT, PHASES.COMPLETE].includes(getTournamentPhase(t)) && t.captains) {
+      if (t.status === 'active' && t.captains) {
         t.captains.forEach((c) => {
           if (!seen.has(c.id)) {
             seen.add(c.id);
@@ -3362,43 +2042,19 @@ export default function App() {
   }, [state.tournaments]);
 
   let view;
-  if (!user) view = <Login onLogin={login} players={loginPlayers} captains={loginCaptains} />;
+  if (!user) view = <Login onLogin={login} players={state.players} captains={loginCaptains} />;
   else if (user.role === 'organizer') view = <OrganizerDashboard state={state} updateState={updateState} onLogout={logout} />;
-  else if (!tournament) view = <TournamentSelector user={user} state={state} onSelect={setSelectedTournamentId} onRegister={registerForTournament} onLogout={logout} />;
-  else {
-    const captainCanUseAuction = user.role === 'captain' && tournamentPhase === PHASES.AUCTION;
-    const captainCanUseTournament = user.role === 'captain' && [PHASES.SQUADS, PHASES.TOURNAMENT, PHASES.COMPLETE].includes(tournamentPhase);
-    const playerCanEditProfile = user.role === 'player' && tournamentPhase === PHASES.REGISTRATION;
-    const playerCanViewPool = user.role === 'player' && [PHASES.CAPTAINS, PHASES.AUCTION, PHASES.SQUADS, PHASES.TOURNAMENT, PHASES.COMPLETE].includes(tournamentPhase);
-    const content = (
-      <>
-        {user.role === 'captain' && active === 'squad' && <SquadRoom user={user} state={tournamentState} updateState={updateTournamentState} goAuction={() => setActive('auction')} />}
-        {user.role === 'captain' && active === 'auction' && (captainCanUseAuction
-          ? <AuctionRoom user={user} state={tournamentState} updateState={updateTournamentState} startingBudget={tournament.budget} goTournament={() => setActive('tournament')} />
-          : <PhaseNotice title="Auction is not live." body="The organizer controls when the auction opens. Use the squad room to scout until then." actionLabel="Back to squad" onAction={() => setActive('squad')} />)}
-        {user.role === 'captain' && active === 'tournament' && (captainCanUseTournament
-          ? <TournamentHub user={user} state={tournamentState} updateState={updateTournamentState} />
-          : <PhaseNotice title="Tournament is not ready." body="This opens after the auction closes and squads move into confirmation." actionLabel="Back to squad" onAction={() => setActive('squad')} />)}
-        {user.role === 'captain' && active === 'club' && <ClubSettings user={user} state={tournamentState} updateState={updateTournamentState} />}
-        {user.role === 'player' && active === 'tournament' && (
-          [PHASES.SQUADS, PHASES.TOURNAMENT, PHASES.COMPLETE].includes(tournamentPhase)
-            ? <TournamentHub user={user} state={tournamentState} updateState={updateTournamentState} isOrganizer={false} />
-            : <PhaseNotice title="Tournament is not ready." body="This opens after the squads move into tournament stage." />
-        )}
-        {user.role === 'player' && active === 'profile' && (playerCanEditProfile
-          ? <PlayerProfile user={user} state={state} updateState={updateState} showPool={() => setActive('pool')} editable={playerCanEditProfile} />
-          : <PhaseNotice title="Registration is locked." body="Player cards are locked after registration. You can still follow the draft and squads." actionLabel="View squads" onAction={() => setActive('pool')} />)}
-        {user.role === 'player' && active === 'pool' && (playerCanViewPool || tournamentPhase === PHASES.REGISTRATION
-          ? <PlayerPool state={tournamentState} />
-          : <PhaseNotice title="Player pool is not open." body="The organizer has not opened registration for this tournament yet." />)}
-      </>
-    );
-    view = (
-    <AppShell user={user} active={active} setActive={setActive} onLogout={logout} onChangeTournament={() => setSelectedTournamentId(null)} budget={budget} tournament={tournament} players={state.players} captains={tournamentState.captains} competition={tournamentState.competition}>
-      {content}
+  else if (!tournament) view = <TournamentSelector user={user} state={state} onSelect={setSelectedTournamentId} onLogout={logout} />;
+  else view = (
+    <AppShell user={user} active={active} setActive={setActive} onLogout={logout} onChangeTournament={() => setSelectedTournamentId(null)} budget={budget} tournament={tournament} players={state.players} captains={tournamentState.captains}>
+      {user.role === 'captain' && active === 'squad' && <SquadRoom user={user} state={tournamentState} updateState={updateTournamentState} goAuction={() => setActive('auction')} />}
+      {user.role === 'captain' && active === 'auction' && <AuctionRoom user={user} state={tournamentState} updateState={updateTournamentState} startingBudget={tournament.budget} goTournament={() => setActive('tournament')} />}
+      {user.role === 'captain' && active === 'tournament' && <TournamentHub user={user} state={tournamentState} updateState={updateTournamentState} />}
+      {user.role === 'captain' && active === 'club' && <ClubSettings user={user} state={tournamentState} updateState={updateTournamentState} />}
+      {user.role === 'player' && active === 'profile' && <PlayerProfile user={user} state={tournamentState} updateState={updateTournamentState} showPool={() => setActive('pool')} />}
+      {user.role === 'player' && active === 'pool' && <PlayerPool state={tournamentState} />}
     </AppShell>
-    );
-  }
+  );
   return (
     <><ThemeToggle theme={theme} onToggle={() => setTheme((value) => value === 'dark' ? 'light' : 'dark')} />{view}</>
   );

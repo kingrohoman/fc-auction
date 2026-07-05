@@ -1,81 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap');
 
-@property --lime {
-  syntax: '<color>';
-  inherits: true;
-  initial-value: #d8ff62;
-}
-@property --lime-dark {
-  syntax: '<color>';
-  inherits: true;
-  initial-value: #1c2b17;
-}
-@property --orange {
-  syntax: '<color>';
-  inherits: true;
-  initial-value: #ff9e5e;
-}
-@property --accent {
-  syntax: '<color>';
-  inherits: true;
-  initial-value: #d8ff62;
-}
-@property --role-bg {
-  syntax: '<color>';
-  inherits: true;
-  initial-value: #07100d;
-}
-@property --role-bg-mid {
-  syntax: '<color>';
-  inherits: true;
-  initial-value: #0a1611;
-}
-@property --role-bg-soft {
-  syntax: '<color>';
-  inherits: true;
-  initial-value: #0b1310;
-}
-@property --role-panel {
-  syntax: '<color>';
-  inherits: true;
-  initial-value: #101b16;
-}
-@property --role-surface {
-  syntax: '<color>';
-  inherits: true;
-  initial-value: #101a16;
-}
-@property --role-surface-2 {
-  syntax: '<color>';
-  inherits: true;
-  initial-value: #14211c;
-}
-@property --role-surface-3 {
-  syntax: '<color>';
-  inherits: true;
-  initial-value: #0a120f;
-}
-@property --role-surface-active {
-  syntax: '<color>';
-  inherits: true;
-  initial-value: #15221c;
-}
-@property --role-glow-soft {
-  syntax: '<color>';
-  inherits: true;
-  initial-value: #173123;
-}
-@property --role-secondary {
-  syntax: '<color>';
-  inherits: true;
-  initial-value: #53c6ff;
-}
-@property --role-text-on-accent {
-  syntax: '<color>';
-  inherits: true;
-  initial-value: #0a110d;
-}
-
 :root {
   font-family: 'DM Sans', sans-serif;
   color: #eef6f1;
@@ -283,102 +207,27 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .profile-layout { display: grid; grid-template-columns: minmax(0,1.5fr) minmax(260px,.65fr); gap: 17px; }.profile-form { padding: 28px; }.profile-avatar-row { display: flex; align-items: center; gap: 18px; padding: 18px; background: #0b1511; border-radius: 13px; margin-bottom: 22px; }.profile-avatar-row > div { display: grid; }.profile-avatar-row strong { font: 700 20px 'Manrope'; }.profile-avatar-row span { color: var(--muted); font-size: 11px; }.profile-avatar-row small { color: #59665f; font-size: 8px; margin-top: 6px; }.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }.form-grid label { display: grid; gap: 7px; }.form-grid label > span { color: #9aa79f; font-size: 10px; font-weight: 600; }.form-grid input, .form-grid select { padding: 12px; font-size: 11px; }.span-two { grid-column: span 2; }.profile-preview { background: linear-gradient(155deg, #13231b, #0e1814); border: 1px solid var(--line); border-radius: 16px; padding: 24px; }.profile-preview > h2 { margin-top: 12px; }.profile-preview > p { color: var(--muted); font-size: 10px; margin: 4px 0 20px; }.profile-preview .player-card { margin-bottom: 12px; }.profile-tip { display: flex; gap: 9px; padding: 12px; margin: 16px 0; background: rgba(217,255,99,.06); border: 1px solid rgba(217,255,99,.12); border-radius: 10px; }.profile-tip svg { color: var(--lime); flex: 0 0 auto; }.profile-tip span { display: grid; gap: 2px; color: var(--muted); font-size: 8px; }.profile-tip strong { color: var(--ink); font-size: 9px; }
 .club-settings-layout { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(280px, .65fr); gap: 18px; max-width: 980px; }.club-settings-form { padding: 28px; display: grid; gap: 24px; }.club-name-field, .club-logo-field { display: grid; gap: 9px; }.club-name-field > span, .club-logo-field > span { color: #9daa9f; font-size: 10px; font-weight: 700; }.club-name-field input { width: 100%; padding: 13px; border: 1px solid var(--line); border-radius: 9px; background: #101a16; color: var(--ink); font-size: 13px; outline: none; }.club-name-field input:focus { border-color: rgba(217,255,99,.55); }.club-logo-editor { display: flex; align-items: center; gap: 16px; padding: 18px; border: 1px solid var(--line); border-radius: 12px; background: #0c1511; }.club-logo-editor > div { display: grid; gap: 7px; flex: 1; }.club-logo-editor input[type='file'] { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }.club-upload-button { width: fit-content; cursor: pointer; padding: 10px 13px; }.club-logo-editor small { color: var(--muted); font-size: 8px; }.club-settings-form > .primary { width: fit-content; }.club-preview-card { display: grid; align-content: start; justify-items: center; text-align: center; gap: 11px; padding: 32px 24px; background: linear-gradient(155deg, #13231b, #0e1814); }.club-preview-card h2 { font: 800 22px 'Manrope'; margin: 3px 0 0; }.club-preview-card p { color: var(--muted); font-size: 10px; line-height: 1.6; margin: 0 0 8px; }.club-preview-badge { width: 100%; min-height: 42px; display: flex; align-items: center; justify-content: center; gap: 7px; border: 1px solid rgba(217,255,99,.28); border-radius: 9px; background: rgba(217,255,99,.1); }.club-preview-badge span { color: #9daa9f; font-size: 9px; }.club-preview-badge strong { color: var(--lime); font-size: 10px; }
 .ready-room { max-width: 980px; padding: 28px; }.ready-room-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; margin-bottom: 22px; }.ready-room-head > div { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 0 10px; }.ready-room-head h2 { margin: 0; }.ready-room-head p { grid-column: 2; margin: 3px 0 0; color: var(--muted); font-size: 9px; }.ready-club-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }.ready-club-grid > div { display: flex; align-items: center; gap: 11px; padding: 15px; border: 1px solid var(--line); border-radius: 11px; background: #0d1713; }.ready-club-grid > div.ready { border-color: rgba(112,228,148,.28); background: rgba(112,228,148,.055); }.ready-club-grid > div > span { display: grid; flex: 1; }.ready-club-grid strong { font-size: 11px; }.ready-club-grid small { color: var(--muted); font-size: 8px; margin-top: 2px; }.ready-club-grid svg { color: #68756f; }.ready-club-grid .ready svg { color: #70e494; }.ready-actions { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-top: 20px; }.ready-actions p { color: var(--muted); font-size: 9px; }.format-explainer { max-width: 980px; display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: 16px; padding: 18px 22px; border: 1px solid var(--line); border-radius: 13px; background: rgba(217,255,99,.035); }.format-explainer > div { display: flex; align-items: center; gap: 10px; }.format-explainer > div > strong { color: var(--lime); font: 800 18px 'Manrope'; }.format-explainer span { display: grid; }.format-explainer b { font-size: 10px; }.format-explainer small { color: var(--muted); font-size: 8px; margin-top: 2px; }.format-explainer > svg { color: #526059; }
-.phase-notice { min-height: 360px; display: grid; align-content: center; justify-items: center; gap: 13px; max-width: 720px; margin: 7vh auto 0; padding: 42px 28px; text-align: center; }.phase-notice > svg { color: var(--lime); }.phase-notice h1 { margin: 0; font: 800 32px 'Manrope'; }.phase-notice p { max-width: 460px; margin: 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
 .tournament-hub-header { margin-bottom: 22px; }.tournament-header-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }.tournament-metric-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px; }.tournament-metric-grid > div { display: grid; gap: 5px; padding: 15px; border: 1px solid var(--line); border-radius: 11px; background: var(--panel); }.tournament-metric-grid span { color: var(--muted); font-size: 8px; text-transform: uppercase; letter-spacing: .09em; }.tournament-metric-grid strong { font: 800 17px 'Manrope'; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }.tournament-hub-grid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(320px, .85fr); gap: 16px; }.standings-table, .next-match-card, .top-scorers, .fixture-list { padding: 24px; }.standings-row { display: grid; grid-template-columns: 28px minmax(160px, 1fr) 40px 45px 45px; align-items: center; gap: 8px; padding: 11px 6px; border-top: 1px solid var(--line); font-size: 10px; }.standings-row > span:nth-child(2) { display: flex; align-items: center; gap: 8px; }.standings-row > span:not(:nth-child(2)), .standings-row > strong:last-child { text-align: center; }.standings-row > strong:last-child { color: var(--lime); font-size: 14px; }.standings-head { color: var(--muted); border-top: 0; padding-top: 4px; font-size: 7px; text-transform: uppercase; letter-spacing: .08em; }.next-match-card { text-align: center; background: linear-gradient(155deg, #13231b, #0e1814); }.match-stage { width: fit-content; margin: 10px auto 18px; padding: 5px 8px; border-radius: 99px; color: var(--lime); background: var(--lime-dark); font-size: 8px; font-weight: 800; }.match-versus { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px; margin-bottom: 20px; }.match-versus > div { display: grid; justify-items: center; gap: 8px; }.match-versus strong { font-size: 10px; }.match-versus > b { color: var(--muted); font: 800 15px 'Manrope'; }.next-match-card label { display: grid; gap: 7px; text-align: left; }.next-match-card label span { color: var(--muted); font-size: 8px; font-weight: 700; }.next-match-card input { width: 100%; padding: 11px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); background: #0c1511; font-size: 10px; }.next-match-card .secondary { margin-top: 9px; }.scheduled-note { display: flex; justify-content: center; align-items: center; gap: 5px; color: #90dba5; font-size: 8px; }.matchmaker-demo { margin-top: 14px; }.tournament-complete { display: grid; justify-items: center; gap: 5px; padding: 45px 10px; }.tournament-complete svg { color: var(--lime); }.tournament-complete h2 { margin: 8px 0 0; }.tournament-complete p { color: var(--muted); font-size: 9px; }.tournament-lower-grid { display: grid; grid-template-columns: minmax(280px, .65fr) minmax(0, 1.35fr); gap: 16px; margin-top: 16px; }.top-scorers > div:not(.panel-head) { display: flex; align-items: center; gap: 9px; padding: 10px 5px; border-top: 1px solid var(--line); }.top-scorers > div > span { display: grid; }.top-scorers strong { font-size: 10px; }.top-scorers small { color: var(--muted); font-size: 8px; margin-top: 2px; }.fixture-list > div:not(.panel-head) { display: grid; grid-template-columns: 105px minmax(180px, 1fr) 115px; align-items: center; gap: 10px; padding: 10px 7px; border-top: 1px solid var(--line); }.fixture-list > div.current { margin: 0 -7px; padding-left: 14px; padding-right: 14px; border-radius: 8px; background: rgba(217,255,99,.07); }.fixture-list span, .fixture-list small { color: var(--muted); font-size: 8px; }.fixture-list strong { font-size: 9px; }.fixture-list strong b { color: var(--lime); padding: 0 5px; }.fixture-list small { text-align: right; }
 
 .confirm-squad-btn { background: var(--lime); color: #0e1812; }
-.auction-complete-screen {
-  max-width: 1100px;
-  margin: 0 auto;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-.auction-complete-hero {
-  display: grid;
-  justify-items: center;
-  text-align: center;
-  gap: 16px;
-  padding: 64px 24px 48px;
-}
-.auction-complete-hero svg {
-  color: var(--lime);
-}
-.auction-complete-hero h1 {
-  font: 800 48px 'Manrope';
-  letter-spacing: -.06em;
-  margin: 6px 0 0;
-}
-.auction-complete-hero p {
-  color: var(--muted);
-  font-size: 13px;
-  max-width: 520px;
-  line-height: 1.6;
-  margin: 0 0 12px;
-}
-.complete-squads-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 20px;
-  width: 100%;
-  padding: 0 0 48px;
-}
-.complete-squad-card {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  padding: 24px;
-}
-.complete-squad-head {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  margin-bottom: 18px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--line);
-}
-.complete-squad-head > span {
-  display: grid;
-  gap: 3px;
-}
-.complete-squad-head strong {
-  font-size: 15px;
-}
-.complete-squad-head small {
-  color: var(--muted);
-  font-size: 11px;
-}
-.complete-squad-list {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 10px 18px;
-}
-.complete-squad-list > div {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.complete-squad-list > div > span {
-  display: grid;
-  gap: 2px;
-}
-.complete-squad-list strong {
-  font-size: 12px;
-}
-.complete-squad-list small {
-  color: var(--muted);
-  font-size: 9px;
-}
-
-/* Fixture editor & Score entry inputs */
-.fixture-edit-form input:focus, .fixture-edit-form select:focus,
-.score-entry-form input:focus, .score-entry-form select:focus {
-  border-color: rgba(217,255,99,.55);
-  outline: none;
-}
+.auction-complete-screen { max-width: 980px; }
+.auction-complete-hero { display: grid; justify-items: center; text-align: center; gap: 12px; padding: 52px 24px 40px; }
+.auction-complete-hero svg { color: var(--lime); }
+.auction-complete-hero h1 { font: 800 38px 'Manrope'; letter-spacing: -.06em; margin: 4px 0 0; }
+.auction-complete-hero p { color: var(--muted); font-size: 11px; max-width: 420px; line-height: 1.6; margin: 0 0 6px; }
+.complete-squads-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; padding: 0 0 32px; }
+.complete-squad-card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px; }
+.complete-squad-head { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.complete-squad-head > span { display: grid; gap: 2px; }
+.complete-squad-head strong { font-size: 12px; }
+.complete-squad-head small { color: var(--muted); font-size: 9px; }
+.complete-squad-list { display: grid; gap: 7px; }
+.complete-squad-list > div { display: flex; align-items: center; gap: 8px; }
+.complete-squad-list > div > span { display: grid; gap: 1px; }
+.complete-squad-list strong { font-size: 10px; }
+.complete-squad-list small { color: var(--muted); font-size: 8px; }
 .theme-toggle { position: fixed; z-index: 100; top: 18px; right: 20px; display: flex; align-items: center; gap: 7px; padding: 9px 11px; border: 1px solid var(--line); border-radius: 10px; color: var(--ink); background: color-mix(in srgb, var(--panel) 92%, transparent); box-shadow: 0 8px 25px rgba(0,0,0,.12); backdrop-filter: blur(12px); font-size: 9px; font-weight: 800; }
 .organizer-login-note { display: flex; align-items: center; gap: 12px; min-height: 74px; padding: 14px; margin-bottom: 14px; border: 1px solid rgba(217,255,99,.16); border-radius: 11px; color: var(--lime); background: var(--lime-dark); }.organizer-login-note > span { display: grid; gap: 3px; }.organizer-login-note strong { color: var(--ink); font-size: 12px; }.organizer-login-note small { color: var(--muted); font-size: 9px; line-height: 1.4; }
-.organizer-auction-panel { margin: 14px 0; padding: 18px; }.organizer-auction-panel .control-actions { justify-content: flex-start; flex-wrap: wrap; }.auctioneer-lot { display: flex; align-items: center; gap: 11px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: rgba(255,255,255,.025); }.auctioneer-lot > span { display: grid; gap: 2px; }.auctioneer-lot strong { font-size: 12px; }.auctioneer-lot small { color: var(--muted); font-size: 9px; }
 .tournament-select-page, .organizer-page { min-height: 100vh; padding: 30px clamp(24px, 5vw, 72px) 70px; background: radial-gradient(circle at 82% 10%, rgba(217,255,99,.07), transparent 28%), #0b1310; }
 @media (min-width: 768px) {
   .tournament-select-page, .organizer-page { zoom: 1.25; }
@@ -386,14 +235,14 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .standalone-header { display: flex; align-items: center; justify-content: space-between; min-height: 45px; padding-right: 105px; }.standalone-header > div { display: flex; align-items: center; gap: 10px; }
 .selector-heading { max-width: 760px; margin: 10vh auto 36px; text-align: center; }.selector-heading h1 { margin: 9px 0 7px; font: 800 clamp(38px, 5vw, 60px) 'Manrope'; letter-spacing: -.06em; }.selector-heading p { margin: 0; color: var(--muted); font-size: 13px; }
 .tournament-card-grid { display: grid; grid-template-columns: repeat(3, minmax(250px, 360px)); justify-content: center; gap: 16px; }
-.tournament-select-card { padding: 23px; border: 1px solid var(--line); border-radius: 17px; background: var(--panel); box-shadow: 0 20px 60px rgba(0,0,0,.12); }.tournament-select-card.available { border-color: rgba(217,255,99,.25); }.tournament-card-top { display: flex; align-items: center; justify-content: space-between; color: var(--lime); }.tournament-select-card h2 { margin: 26px 0 12px; font: 700 22px 'Manrope'; letter-spacing: -.04em; }.tournament-status { display: inline-flex; align-items: center; gap: 7px; width: fit-content; padding: 6px 8px; border-radius: 99px; color: #98a69f; background: #19231f; font-size: 8px; font-weight: 800; text-transform: uppercase; letter-spacing: .09em; }.tournament-status.active,.tournament-status.auction_live,.tournament-status.tournament_live { color: #c9eece; background: rgba(83,205,119,.1); }.tournament-status.registration_open { color: #b8ecff; background: rgba(102,227,255,.1); }.tournament-status.captain_selection,.tournament-status.squad_confirmation { color: #f0dcff; background: rgba(182,156,255,.12); }.tournament-status.complete { color: #ffe9a8; background: rgba(255,217,100,.12); }.tournament-meta { display: flex; flex-wrap: wrap; gap: 10px; color: var(--muted); font-size: 9px; }.tournament-meta span { display: flex; align-items: center; gap: 5px; }.tournament-rules { display: flex; gap: 5px; margin: 19px 0; }.tournament-rules span { padding: 5px 7px; border: 1px solid var(--line); border-radius: 6px; color: #93a098; font-size: 8px; font-weight: 700; }
+.tournament-select-card { padding: 23px; border: 1px solid var(--line); border-radius: 17px; background: var(--panel); box-shadow: 0 20px 60px rgba(0,0,0,.12); }.tournament-select-card.available { border-color: rgba(217,255,99,.25); }.tournament-card-top { display: flex; align-items: center; justify-content: space-between; color: var(--lime); }.tournament-select-card h2 { margin: 26px 0 12px; font: 700 22px 'Manrope'; letter-spacing: -.04em; }.tournament-status { display: inline-flex; align-items: center; gap: 7px; width: fit-content; padding: 6px 8px; border-radius: 99px; color: #98a69f; background: #19231f; font-size: 8px; font-weight: 800; text-transform: uppercase; letter-spacing: .09em; }.tournament-status.active { color: #c9eece; background: rgba(83,205,119,.1); }.tournament-meta { display: flex; flex-wrap: wrap; gap: 10px; color: var(--muted); font-size: 9px; }.tournament-meta span { display: flex; align-items: center; gap: 5px; }.tournament-rules { display: flex; gap: 5px; margin: 19px 0; }.tournament-rules span { padding: 5px 7px; border: 1px solid var(--line); border-radius: 6px; color: #93a098; font-size: 8px; font-weight: 700; }
 .tournament-switch { width: 100%; display: flex; align-items: center; gap: 8px; margin: -16px 0 20px; padding: 8px 10px; border: 0; border-radius: 8px; color: #77847e; background: transparent; font-size: 9px; font-weight: 700; text-align: left; }.tournament-switch svg:last-child { margin-left: auto; }.tournament-switch:hover { color: var(--ink); background: #132019; }
 .organizer-badge { display: flex; align-items: center; gap: 6px; padding: 7px 9px; border-radius: 99px; color: var(--lime); background: var(--lime-dark); font-size: 9px; font-weight: 800; }
 .organizer-layout { display: grid; grid-template-columns: 310px minmax(0,1fr); gap: 18px; margin-top: 38px; }
 .tournament-list-panel, .tournament-control-panel { border: 1px solid var(--line); border-radius: 17px; background: var(--panel); }.tournament-list-panel { padding: 20px; align-self: start; }.tournament-control-panel { padding: 28px; }
 .organizer-section-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }.organizer-section-head h1 { margin: 4px 0 0; font: 700 25px 'Manrope'; }.icon-only { width: 38px; height: 38px; padding: 0; }
 .create-tournament-form { display: grid; gap: 10px; padding: 13px; margin-bottom: 14px; border: 1px solid rgba(217,255,99,.17); border-radius: 11px; background: #0b1511; }.create-tournament-form > div { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }.create-tournament-form label { display: grid; gap: 5px; }.create-tournament-form label span { color: var(--muted); font-size: 8px; font-weight: 700; }.create-tournament-form input { min-width: 0; width: 100%; padding: 9px; border: 1px solid var(--line); border-radius: 7px; color: var(--ink); background: #111d18; font-size: 9px; }
-.organizer-tournament-list { display: grid; gap: 6px; }.organizer-tournament-list > button { display: flex; align-items: center; gap: 9px; padding: 11px 9px; border: 1px solid transparent; border-radius: 9px; color: #87958f; background: transparent; text-align: left; }.organizer-tournament-list > button.active { color: var(--ink); border-color: var(--line); background: #15221c; }.organizer-tournament-list > button > span:nth-child(2) { display: grid; flex: 1; }.organizer-tournament-list strong { font-size: 10px; }.organizer-tournament-list small { color: var(--muted); font-size: 8px; margin-top: 2px; }.tournament-dot { width: 7px; height: 7px; border-radius: 50%; background: #68756f; }.tournament-dot.active,.tournament-dot.auction_live,.tournament-dot.tournament_live { background: #75e590; box-shadow: 0 0 0 4px rgba(117,229,144,.08); }.tournament-dot.registration_open { background: #66e3ff; box-shadow: 0 0 0 4px rgba(102,227,255,.08); }.tournament-dot.captain_selection,.tournament-dot.squad_confirmation { background: #b69cff; box-shadow: 0 0 0 4px rgba(182,156,255,.08); }.tournament-dot.complete { background: #ffd964; box-shadow: 0 0 0 4px rgba(255,217,100,.08); }
+.organizer-tournament-list { display: grid; gap: 6px; }.organizer-tournament-list > button { display: flex; align-items: center; gap: 9px; padding: 11px 9px; border: 1px solid transparent; border-radius: 9px; color: #87958f; background: transparent; text-align: left; }.organizer-tournament-list > button.active { color: var(--ink); border-color: var(--line); background: #15221c; }.organizer-tournament-list > button > span:nth-child(2) { display: grid; flex: 1; }.organizer-tournament-list strong { font-size: 10px; }.organizer-tournament-list small { color: var(--muted); font-size: 8px; margin-top: 2px; }.tournament-dot { width: 7px; height: 7px; border-radius: 50%; background: #68756f; }.tournament-dot.active { background: #75e590; box-shadow: 0 0 0 4px rgba(117,229,144,.08); }
 .control-hero { display: flex; align-items: flex-end; justify-content: space-between; gap: 25px; padding-bottom: 23px; border-bottom: 1px solid var(--line); }.control-hero h2 { margin: 10px 0 4px; font: 800 34px 'Manrope'; letter-spacing: -.05em; }.control-hero p { margin: 0; color: var(--muted); font-size: 10px; }
 .control-stats { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin: 18px 0; }.control-stats > div { display: grid; gap: 5px; padding: 15px; border: 1px solid var(--line); border-radius: 11px; background: #0d1713; }.control-stats span { color: var(--muted); font-size: 8px; text-transform: uppercase; letter-spacing: .09em; }.control-stats strong { font: 800 22px 'Manrope'; }
 .locked-import { display: grid; justify-items: center; padding: 65px 25px; color: #65726c; text-align: center; border: 1px dashed var(--line); border-radius: 13px; }.locked-import h3 { margin: 13px 0 4px; color: var(--ink); font: 700 15px 'Manrope'; }.locked-import p { margin: 0; font-size: 9px; }
@@ -444,349 +293,6 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 :root[data-theme='light'] .lot-traits span, :root[data-theme='light'] .demo-controls button, :root[data-theme='light'] .organizer-tournament-list > button.active, :root[data-theme='light'] .create-tournament-form input { background: #edf3ea; color: #4c5b52; }
 :root[data-theme='light'] .tournament-status { background: #e9eee7; }
 :root[data-theme='light'] .theme-toggle { background: rgba(255,255,255,.92); box-shadow: 0 8px 25px rgba(34,57,43,.1); }
-
-.role-theme {
-  --accent: var(--lime);
-  --accent-rgb: 217, 255, 99;
-  --role-bg: #07100d;
-  --role-bg-mid: #0a1611;
-  --role-bg-soft: #0b1310;
-  --role-panel: #101b16;
-  --role-panel-rgb: 16, 27, 22;
-  --role-surface: #101a16;
-  --role-surface-2: #14211c;
-  --role-surface-3: #0a120f;
-  --role-surface-active: #15221c;
-  --role-glow-soft: #173123;
-  --role-secondary: #53c6ff;
-  --role-text-on-accent: #0a110d;
-  color: var(--ink);
-  transition:
-    --lime .55s ease,
-    --lime-dark .55s ease,
-    --orange .55s ease,
-    --accent .55s ease,
-    --role-bg .55s ease,
-    --role-bg-mid .55s ease,
-    --role-bg-soft .55s ease,
-    --role-panel .55s ease,
-    --role-surface .55s ease,
-    --role-surface-2 .55s ease,
-    --role-surface-3 .55s ease,
-    --role-surface-active .55s ease,
-    --role-glow-soft .55s ease,
-    --role-secondary .55s ease,
-    --role-text-on-accent .55s ease,
-    background .55s ease,
-    color .35s ease;
-}
-
-.role-theme-captain {
-  --lime: #ffd44d;
-  --lime-dark: #342910;
-  --orange: #ff9860;
-  --accent: #ffd44d;
-  --accent-rgb: 255, 212, 77;
-  --role-bg: #100d05;
-  --role-bg-mid: #181205;
-  --role-bg-soft: #130f07;
-  --role-panel: #1e1709;
-  --role-panel-rgb: 30, 23, 9;
-  --role-surface: #1b1509;
-  --role-surface-2: #251c0d;
-  --role-surface-3: #140f06;
-  --role-surface-active: #2a210d;
-  --role-glow-soft: #4a3510;
-  --role-secondary: #ff8f5a;
-  --role-text-on-accent: #171006;
-}
-
-.role-theme-player {
-  --lime: #d8ff62;
-  --lime-dark: #1c2b17;
-  --orange: #ff9e5e;
-  --accent: #d8ff62;
-  --accent-rgb: 217, 255, 99;
-  --role-bg: #07100d;
-  --role-bg-mid: #0a1611;
-  --role-bg-soft: #0b1310;
-  --role-panel: #101b16;
-  --role-panel-rgb: 16, 27, 22;
-  --role-surface: #101a16;
-  --role-surface-2: #14211c;
-  --role-surface-3: #0a120f;
-  --role-surface-active: #15221c;
-  --role-glow-soft: #173123;
-  --role-secondary: #53c6ff;
-  --role-text-on-accent: #0a110d;
-}
-
-.role-theme-organizer {
-  --lime: #bd93ff;
-  --lime-dark: #241735;
-  --orange: #f08cff;
-  --accent: #bd93ff;
-  --accent-rgb: 189, 147, 255;
-  --role-bg: #0d0714;
-  --role-bg-mid: #140a20;
-  --role-bg-soft: #100819;
-  --role-panel: #180e24;
-  --role-panel-rgb: 24, 14, 36;
-  --role-surface: #171021;
-  --role-surface-2: #211531;
-  --role-surface-3: #100918;
-  --role-surface-active: #26183a;
-  --role-glow-soft: #311950;
-  --role-secondary: #7dc7ff;
-  --role-text-on-accent: #12091d;
-}
-
-:root[data-theme='light'] .role-theme-captain {
-  --lime: #b87900;
-  --lime-dark: #fff0c9;
-  --role-bg: #fff9ed;
-  --role-bg-mid: #fff2cf;
-  --role-bg-soft: #fff7e7;
-  --role-panel: #fffcf5;
-  --role-panel-rgb: 255, 252, 245;
-  --role-surface: #fffaf0;
-  --role-surface-2: #fff3d7;
-  --role-surface-3: #fff5df;
-  --role-surface-active: #ffedbf;
-  --role-glow-soft: #ffe7aa;
-  --role-text-on-accent: #fff;
-}
-
-:root[data-theme='light'] .role-theme-player {
-  --lime: #759d1f;
-  --lime-dark: #edf4dd;
-  --role-bg: #f8faf7;
-  --role-bg-mid: #edf4eb;
-  --role-bg-soft: #edf2ec;
-  --role-panel: #ffffff;
-  --role-panel-rgb: 255, 255, 255;
-  --role-surface: #ffffff;
-  --role-surface-2: #f2f6f1;
-  --role-surface-3: #f1f5ef;
-  --role-surface-active: #edf3e9;
-  --role-glow-soft: #dcebd7;
-  --role-text-on-accent: #fff;
-}
-
-:root[data-theme='light'] .role-theme-organizer {
-  --lime: #8054c7;
-  --lime-dark: #f0e7ff;
-  --role-bg: #fbf8ff;
-  --role-bg-mid: #f4edff;
-  --role-bg-soft: #f7f1ff;
-  --role-panel: #fffcff;
-  --role-panel-rgb: 255, 252, 255;
-  --role-surface: #fff;
-  --role-surface-2: #f7f0ff;
-  --role-surface-3: #f4edff;
-  --role-surface-active: #eee2ff;
-  --role-glow-soft: #e7d8ff;
-  --role-text-on-accent: #fff;
-}
-
-.login-page.role-theme {
-  background: radial-gradient(circle at 15% 80%, var(--role-glow-soft) 0, transparent 34%), linear-gradient(120deg, var(--role-bg) 0%, var(--role-bg-mid) 55%, var(--role-bg) 100%);
-}
-.role-theme .login-glow-one { background: var(--lime); }
-.role-theme .login-glow-two { background: var(--role-secondary); }
-.role-theme .login-hero h1 em { -webkit-text-stroke-color: color-mix(in srgb, var(--lime) 88%, white); }
-.role-theme .login-card {
-  background: color-mix(in srgb, var(--role-panel) 92%, transparent);
-  border-color: color-mix(in srgb, var(--accent) 16%, transparent);
-}
-.role-theme .role-tabs,
-.role-theme .select-wrap select,
-.role-theme .form-grid select,
-.role-theme .form-grid input {
-  background: var(--role-surface-3);
-}
-.role-theme .role-tabs button.active,
-.role-theme .sidebar nav button.active,
-.role-theme .organizer-tournament-list > button.active,
-.role-theme .org-tabs button.active {
-  background: var(--role-surface-active);
-}
-.role-theme .primary,
-.role-theme .bid-button {
-  color: var(--role-text-on-accent);
-  background: var(--lime);
-  box-shadow: 0 8px 30px color-mix(in srgb, var(--accent) 12%, transparent);
-}
-.role-theme .primary:hover { background: color-mix(in srgb, var(--lime) 88%, white); }
-.app-shell.role-theme,
-.tournament-select-page.role-theme,
-.organizer-page.role-theme {
-  background: radial-gradient(circle at 82% 10%, color-mix(in srgb, var(--accent) 9%, transparent), transparent 28%), var(--role-bg-soft);
-}
-.role-theme .sidebar { background: var(--role-bg); }
-.role-theme .content { background: var(--role-bg-soft); }
-.role-theme .event-card,
-.role-theme .profile-preview,
-.role-theme .club-preview-card,
-.role-theme .next-match-card {
-  background: linear-gradient(155deg, var(--role-surface-2), var(--role-surface));
-}
-.role-theme .event-card,
-.role-theme .tournament-select-card.available,
-.role-theme .create-tournament-form,
-.role-theme .edit-tournament-form-inline {
-  border-color: color-mix(in srgb, var(--accent) 22%, transparent) !important;
-}
-.role-theme .icon-button,
-.role-theme .secondary,
-.role-theme .search-box,
-.role-theme .filter-pills button,
-.role-theme .rank-button,
-.role-theme .budget-mini,
-.role-theme .mobile-top,
-.role-theme .formation-options > button,
-.role-theme .assignment-box,
-.role-theme .member-list > button,
-.role-theme .profile-avatar-row,
-.role-theme .club-name-field input,
-.role-theme .club-logo-editor,
-.role-theme .leading-bid,
-.role-theme .csv-import-panel,
-.role-theme .control-stats > div,
-.role-theme .ready-club-grid > div,
-.role-theme .manual-player-form,
-.role-theme .roster-list,
-.role-theme .next-match-card input {
-  background: var(--role-surface);
-}
-.role-theme .formation-options > button.active,
-.role-theme .member-list > button.selected,
-.role-theme .standings-card > div.leading,
-.role-theme .vote-card.selected,
-.role-theme .csv-preview-head,
-.role-theme .roster-list-header,
-.role-theme .manual-form-grid input,
-.role-theme .manual-form-grid select,
-.role-theme .form-grid-inline input,
-.role-theme .form-grid-inline select,
-.role-theme .create-tournament-form input,
-.role-theme .create-tournament-form select,
-.role-theme .edit-tournament-form-inline input,
-.role-theme .edit-tournament-form-inline select {
-  background: var(--role-surface-active) !important;
-}
-.role-theme .player-card:hover,
-.role-theme .player-card.shortlisted,
-.role-theme .player-card.sold,
-.role-theme .vote-card:hover,
-.role-theme .vote-card.selected,
-.role-theme .upload-drop,
-.role-theme .profile-tip,
-.role-theme .format-explainer,
-.role-theme .fixture-list > div.current,
-.role-theme .club-preview-badge,
-.role-theme .rank-button.sold-label {
-  border-color: color-mix(in srgb, var(--accent) 28%, transparent);
-}
-.role-theme .upload-drop,
-.role-theme .profile-tip,
-.role-theme .format-explainer,
-.role-theme .fixture-list > div.current,
-.role-theme .club-preview-badge,
-.role-theme .player-card.sold,
-.role-theme .rank-button.sold-label,
-.role-theme .organizer-login-note {
-  background: color-mix(in srgb, var(--accent) 8%, transparent);
-}
-
-.role-theme,
-.role-theme *,
-.role-theme *::before,
-.role-theme *::after {
-  transition-property: background, background-color, border-color, box-shadow, color, fill, opacity, outline-color, text-shadow, -webkit-text-stroke-color;
-  transition-duration: .55s;
-  transition-timing-function: cubic-bezier(.22, 1, .36, 1);
-}
-
-.role-theme .login-glow {
-  transition-property: background, opacity, transform;
-  transition-duration: .7s;
-}
-
-.role-theme .login-glow-one {
-  transform: translate3d(0, 0, 0) scale(1);
-}
-
-.role-theme-captain .login-glow-one {
-  transform: translate3d(-5%, 4%, 0) scale(1.08);
-}
-
-.role-theme-player .login-glow-one {
-  transform: translate3d(0, 0, 0) scale(1);
-}
-
-.role-theme-organizer .login-glow-one {
-  transform: translate3d(5%, -4%, 0) scale(1.12);
-}
-
-.role-theme .role-tabs button,
-.role-theme .sidebar nav button,
-.role-theme .organizer-tournament-list > button,
-.role-theme .org-tabs button,
-.role-theme .primary,
-.role-theme .secondary,
-.role-theme .ghost,
-.role-theme .player-card,
-.role-theme .panel,
-.role-theme .tournament-select-card,
-.role-theme .tournament-list-panel,
-.role-theme .tournament-control-panel {
-  transition-property: background, background-color, border-color, box-shadow, color, opacity, transform;
-  transition-duration: .28s, .55s, .55s, .55s, .35s, .25s, .28s;
-  transition-timing-function: cubic-bezier(.22, 1, .36, 1);
-}
-
-.login-hero,
-.login-card,
-.selector-heading,
-.tournament-card-grid > *,
-.organizer-layout > *,
-.content > * {
-  animation: view-enter .36s cubic-bezier(.22, 1, .36, 1) both;
-}
-
-.content > *:nth-child(2),
-.tournament-card-grid > *:nth-child(2),
-.organizer-layout > *:nth-child(2) {
-  animation-delay: .04s;
-}
-
-.content > *:nth-child(3),
-.tournament-card-grid > *:nth-child(3) {
-  animation-delay: .08s;
-}
-
-@keyframes view-enter {
-  from {
-    opacity: 0;
-    transform: translateY(10px) scale(.992);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .role-theme,
-  .role-theme *,
-  .role-theme *::before,
-  .role-theme *::after {
-    transition-duration: .01ms !important;
-    animation-duration: .01ms !important;
-    animation-delay: 0ms !important;
-  }
-}
 
 /* Enhanced Organizer Features */
 .btn-danger {
@@ -1116,16 +622,4 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 :root[data-theme='light'] .create-tournament-form input, :root[data-theme='light'] .create-tournament-form select,
 :root[data-theme='light'] .edit-tournament-form-inline input, :root[data-theme='light'] .edit-tournament-form-inline select {
   background: #fff !important;
-}
-
-.role-theme .create-tournament-form,
-.role-theme .edit-tournament-form-inline {
-  background: var(--role-surface) !important;
-  border-color: color-mix(in srgb, var(--accent) 25%, transparent) !important;
-}
-.role-theme .create-tournament-form input,
-.role-theme .create-tournament-form select,
-.role-theme .edit-tournament-form-inline input,
-.role-theme .edit-tournament-form-inline select {
-  background: var(--role-surface-active) !important;
 }

@@ -1,18 +1,16 @@
-# Clubhouse - FC 26 auction prototype
+# Clubhouse — FC 26 auction prototype
 
-A browser-based first pass for a four-captain FC 26 tournament service.
+A browser-based first pass for a four-captain FC 26 tournament draft.
 
 ## Included
 
 - Demo role login for organizers, captains, and players
-- Explicit tournament lifecycle: Draft setup, Registration open, Captain selection, Auction live, Squad confirmation, Tournament live, Complete
-- Tournament creation, phase controls, and tournament-scoped data
+- Tournament creation, start controls, and tournament-scoped data
 - Tournament selection after captain or player login
-- Player self-registration while registration is open
-- CSV player-pool import before registration is locked
+- CSV player-pool import after a tournament starts
 - Persistent dark and light themes
 - Editable player profiles and shared player pool
-- Dynamic team-size formations with goalkeeper and outfield positions
+- Four eleven-a-side formations with goalkeeper and outfield positions
 - Click-to-assign lineup builder plus position-aware auto-placement
 - Three-player captain shortlists and nomination voting
 - Preloaded rival-captain shortlists for repeatable auction testing
@@ -40,7 +38,7 @@ name,gamertag,preferred_positions,specializations,play_style
 Naeem Rahman,Naeem8,CM|CAM,Tiki Taka|First Touch,Creator
 ```
 
-Use `|` between multiple preferred positions or specializations. Imported players become login profiles and can select tournaments whose player pools include them. Existing demo players can also register themselves during the Registration open phase.
+Use `|` between multiple preferred positions or specializations. Imported players become login profiles and can only select tournaments whose player pools include them.
 
 ## Standard setup outside a synced folder
 
@@ -53,10 +51,6 @@ Then open `http://127.0.0.1:5173`.
 
 ## Prototype assumptions
 
-- V1 is intentionally locked to four captains because the current fixture path is a four-team League + Finals format.
-- Team size is flexible; each squad contains the captain plus `teamSize - 1` auctioned players.
-- The organizer dashboard owns phase transitions and controls starting/advancing rounds (nomination reveal, awarding lots, and passing lots).
-- Captains place bids from their own tabs, and the organizer dashboard acts as a read-only live monitor for active rounds.
-- Real-time tab synchronization is supported via a `BroadcastChannel` based local multi-tab sync, which can be easily replaced by Supabase Realtime in future iterations.
-- Enforced rules ensure captain nominations require shortlist readiness, player profiles require completeness, and cleanup tasks are scoped to deleted tournaments.
-
+- Each starting XI contains the captain plus up to ten auctioned players; the captain starts in goal but can be reassigned manually.
+- “Fill remaining demo votes” and “Simulate rival +25” stand in for other connected browsers.
+- Authentication and true multi-user live state require a backend in the next pass (Supabase is a sensible fit).
