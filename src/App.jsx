@@ -236,7 +236,8 @@ const createAuction = () => ({
   leaderId: null,
   history: [],
   order: [],
-  countdownEndTime: null
+  countdownEndTime: null,
+  lastBidTime: 0
 });
 
 const auctionEligiblePlayers = (players, tournamentCaptains = []) => {
@@ -263,7 +264,16 @@ const createCompetition = () => ({ phase: 'ready', readyCaptainIds: [], matches:
 const createLeagueFixtures = (teamIds) => {
   if (teamIds.length !== 4) return [];
   const [a, b, c, d] = teamIds;
-  const rounds = [[[a, d], [b, c]], [[a, c], [d, b]], [[a, b], [c, d]]];
+  const rounds = [
+    // First round robin (Rounds 1-3)
+    [[a, d], [b, c]], 
+    [[a, c], [d, b]], 
+    [[a, b], [c, d]],
+    // Second round robin (Rounds 4-6, reversed home/away)
+    [[d, a], [c, b]],
+    [[c, a], [b, d]],
+    [[b, a], [d, c]]
+  ];
   return rounds.flatMap((pairs, roundIndex) => pairs.map(([homeId, awayId], matchIndex) => ({
     id: `league-${roundIndex + 1}-${matchIndex + 1}`,
     stage: 'league', round: roundIndex + 1, label: `League · Round ${roundIndex + 1}`,
@@ -287,8 +297,8 @@ const calculateStandings = (tournamentCaptains, matches) => {
 };
 
 const createFinalFixtures = (standings) => ([
-  { id: 'shield-final', stage: 'finals', round: 4, label: 'Shield Match · 3rd vs 4th', homeId: standings[2].teamId, awayId: standings[3].teamId, status: 'pending', scheduledAt: '', homeScore: null, awayScore: null },
-  { id: 'championship-final', stage: 'finals', round: 5, label: 'Championship Final · 1st vs 2nd', homeId: standings[0].teamId, awayId: standings[1].teamId, status: 'pending', scheduledAt: '', homeScore: null, awayScore: null },
+  { id: 'shield-final', stage: 'finals', round: 7, label: 'Shield Match · 3rd vs 4th', homeId: standings[2].teamId, awayId: standings[3].teamId, status: 'pending', scheduledAt: '', homeScore: null, awayScore: null },
+  { id: 'championship-final', stage: 'finals', round: 8, label: 'Championship Final · 1st vs 2nd', homeId: standings[0].teamId, awayId: standings[1].teamId, status: 'pending', scheduledAt: '', homeScore: null, awayScore: null },
 ]);
 
 const suggestKickoffDate = () => {
@@ -332,27 +342,21 @@ const createDefaultState = () => ({
 });
 
 const isLegacyRef = (value) => {
-  const id = String(value || '').replace(/^captain:/, '');
-  return legacySeedPlayerIds.has(id) || legacyCaptainIds.has(id);
+  return false;
 };
 
 const removeLegacySeedPlayerRefs = (value) => {
-  if (Array.isArray(value)) return value.filter((item) => !isLegacyRef(item));
-  if (value && typeof value === 'object') {
-    return Object.fromEntries(Object.entries(value).filter(([, item]) => !isLegacyRef(item)));
-  }
   return value;
 };
 
 const sanitizeCaptainData = (captainData = {}) => Object.fromEntries(Object.entries(captainData)
-  .filter(([captainId]) => !legacyCaptainIds.has(captainId))
   .map(([captainId, data]) => [
     captainId,
     {
       ...data,
-      shortlist: removeLegacySeedPlayerRefs(data?.shortlist || []),
-      squad: removeLegacySeedPlayerRefs(data?.squad || []),
-      lineup: removeLegacySeedPlayerRefs(data?.lineup || {}),
+      shortlist: data?.shortlist || [],
+      squad: data?.squad || [],
+      lineup: data?.lineup || {},
     },
   ]));
 
@@ -363,7 +367,7 @@ const stripLegacyTournamentKeys = (map = {}) => Object.fromEntries(
 const sanitizeState = (state) => {
   const cleanedTournamentPlayerIds = Object.fromEntries(Object.entries(stripLegacyTournamentKeys(state.tournamentPlayerIds || {})).map(([tournamentId, playerIds]) => [
     tournamentId,
-    removeLegacySeedPlayerRefs(playerIds || []),
+    playerIds || [],
   ]));
 
   const activePlayerIds = new Set();
@@ -374,13 +378,13 @@ const sanitizeState = (state) => {
   const cleaned = {
     ...state,
     players: (state.players || [])
-      .filter((player) => !legacySeedPlayerIds.has(player.id) && !legacyCaptainIds.has(player.id) && activePlayerIds.has(player.id)),
+      .filter((player) => activePlayerIds.has(player.id)),
     captainData: sanitizeCaptainData(state.captainData),
     tournaments: (state.tournaments || [])
       .filter((tournament) => !legacyTournamentIds.has(tournament.id))
       .map((tournament) => ({
         ...tournament,
-        captains: (tournament.captains || []).filter((captain) => !legacyCaptainIds.has(captain.id)),
+        captains: tournament.captains || [],
       })),
     tournamentPlayerIds: cleanedTournamentPlayerIds,
     tournamentCaptainData: Object.fromEntries(Object.entries(stripLegacyTournamentKeys(state.tournamentCaptainData || {})).map(([tournamentId, captainData]) => [
@@ -391,7 +395,7 @@ const sanitizeState = (state) => {
 
   cleaned.tournamentAuctions = Object.fromEntries(Object.entries(stripLegacyTournamentKeys(state.tournamentAuctions || {})).map(([tournamentId, auction]) => [
     tournamentId,
-    isLegacyRef(auction?.playerId) ? createAuction() : auction,
+    auction,
   ]));
   cleaned.tournamentCompetitions = stripLegacyTournamentKeys(state.tournamentCompetitions || {});
 
@@ -851,19 +855,35 @@ function OrganizerAuctionPanel({ tournament, state, updateState }) {
           ]
         };
       } else {
-        draft.tournamentAuctions[tourId] = {
-          ...tAuction,
-          phase: 'priority-setup',
-          playerId: null,
-          bid: 0,
-          leaderId: null,
-          order: [],
-          history: [
-            { type: 'complete', text: 'Round completed. Waiting for new priority selections.' },
-            saleEntry,
-            ...tAuction.history
-          ]
-        };
+        const tPlayerIds = new Set(draft.tournamentPlayerIds[tourId] || []);
+        const unsoldPool = draft.players.filter((p) => tPlayerIds.has(p.id) && !sold.has(p.id) && !tournament.captains.some(cap => cap.id === p.id));
+        if (unsoldPool.length > 0) {
+          const shuffled = unsoldPool.sort(() => Math.random() - 0.5);
+          const firstPlayer = shuffled[0];
+          const remainingUnsoldIds = shuffled.slice(1).map((p) => p.id);
+          draft.tournamentAuctions[tourId] = {
+            ...tAuction,
+            phase: 'bidding',
+            playerId: firstPlayer.id,
+            bid: 50,
+            leaderId: null,
+            order: remainingUnsoldIds,
+            history: [
+              { type: 'nomination', text: `${firstPlayer.tag} nominated at 50 coins (automatic pool queue)` },
+              saleEntry,
+              ...tAuction.history
+            ]
+          };
+        } else {
+          draft.tournamentAuctions[tourId] = {
+            phase: 'complete',
+            votes: {},
+            playerId: null,
+            bid: 0,
+            leaderId: null,
+            history: [{ type: 'complete', text: 'Auction complete · All squads set' }, saleEntry, ...tAuction.history]
+          };
+        }
       }
     });
   };
@@ -908,19 +928,35 @@ function OrganizerAuctionPanel({ tournament, state, updateState }) {
           ]
         };
       } else {
-        draft.tournamentAuctions[tourId] = {
-          ...tAuction,
-          phase: 'priority-setup',
-          playerId: null,
-          bid: 0,
-          leaderId: null,
-          order: [],
-          history: [
-            { type: 'complete', text: 'Round completed. Waiting for new priority selections.' },
-            passEntry,
-            ...tAuction.history
-          ]
-        };
+        const tPlayerIds = new Set(draft.tournamentPlayerIds[tourId] || []);
+        const unsoldPool = draft.players.filter((p) => tPlayerIds.has(p.id) && !sold.has(p.id) && !tournament.captains.some(cap => cap.id === p.id));
+        if (unsoldPool.length > 0) {
+          const shuffled = unsoldPool.sort(() => Math.random() - 0.5);
+          const firstPlayer = shuffled[0];
+          const remainingUnsoldIds = shuffled.slice(1).map((p) => p.id);
+          draft.tournamentAuctions[tourId] = {
+            ...tAuction,
+            phase: 'bidding',
+            playerId: firstPlayer.id,
+            bid: 50,
+            leaderId: null,
+            order: remainingUnsoldIds,
+            history: [
+              { type: 'nomination', text: `${firstPlayer.tag} nominated at 50 coins (automatic pool queue)` },
+              passEntry,
+              ...tAuction.history
+            ]
+          };
+        } else {
+          draft.tournamentAuctions[tourId] = {
+            phase: 'complete',
+            votes: {},
+            playerId: null,
+            bid: 0,
+            leaderId: null,
+            history: [{ type: 'complete', text: 'Auction complete · All squads set' }, passEntry, ...tAuction.history]
+          };
+        }
       }
     });
   };
@@ -1144,7 +1180,7 @@ function OrganizerAuctionPanel({ tournament, state, updateState }) {
   return null;
 }
 
-function OrganizerDashboard({ state, updateState, onLogout }) {
+function OrganizerDashboard({ state, updateState, onLogout, tournamentState, updateTournamentState }) {
   const [selectedId, setSelectedId] = useState(state.tournaments[0]?.id);
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({ name: '', date: todayInputDate(), teamSize: 4, captainCount: 4, budget: 1000 });
@@ -1625,7 +1661,10 @@ function OrganizerDashboard({ state, updateState, onLogout }) {
                   <button className={orgTab === 'csv' ? 'active' : ''} onClick={() => setOrgTab('csv')}><FileSpreadsheet size={16} /> CSV Import</button>
                 )}
                 {tournament.status === 'active' && (
-                  <button className={orgTab === 'auction' ? 'active' : ''} onClick={() => setOrgTab('auction')}><Radio size={16} /> Live Auction</button>
+                  <>
+                    <button className={orgTab === 'tournament' ? 'active' : ''} onClick={() => setOrgTab('tournament')}><Trophy size={16} /> Tournament</button>
+                    <button className={orgTab === 'auction' ? 'active' : ''} onClick={() => setOrgTab('auction')}><Radio size={16} /> Live Auction</button>
+                  </>
                 )}
               </div>
               {orgTab === 'csv' && tournament.status === 'draft' ? (
@@ -1647,6 +1686,8 @@ function OrganizerDashboard({ state, updateState, onLogout }) {
                 </div>
               ) : orgTab === 'auction' && tournament.status === 'active' ? (
                 <OrganizerAuctionPanel tournament={tournament} state={state} updateState={updateState} />
+              ) : orgTab === 'tournament' && tournament.status === 'active' ? (
+                <TournamentHub user={{ role: 'organizer', id: 'organizer' }} state={tournamentState} updateState={updateTournamentState} />
               ) : (
                 <div className="roster-management-panel">
                   <div className="roster-header">
@@ -2158,6 +2199,10 @@ function BiddingRoom({ user, state, updateState, onReset }) {
   const canAfford = state.captainData[user.id].budget >= nextBid && !squadFull;
 
   const [timeLeft, setTimeLeft] = useState(0);
+  const [localBidCooldown, setLocalBidCooldown] = useState(false);
+
+  const globalCooldown = auction.lastBidTime && (Date.now() - auction.lastBidTime < 1000);
+  const isBidLocked = localBidCooldown || globalCooldown;
 
   useEffect(() => {
     if (!auction.countdownEndTime) {
@@ -2173,14 +2218,21 @@ function BiddingRoom({ user, state, updateState, onReset }) {
     return () => clearInterval(interval);
   }, [auction.countdownEndTime]);
 
-  const bid = () => updateState((draft) => {
-    const price = draft.auction.leaderId ? draft.auction.bid + 25 : 50;
-    if (draft.captainData[user.id].budget < price) return;
-    draft.auction.bid = price;
-    draft.auction.leaderId = user.id;
-    draft.auction.countdownEndTime = null;
-    draft.auction.history.unshift({ type: 'bid', text: `${state.captains.find((c) => c.id === user.id)?.handle || state.captains.find((c) => c.id === user.id)?.tag || ''} bid ${price}` });
-  });
+  const bid = () => {
+    if (isBidLocked) return;
+    setLocalBidCooldown(true);
+    setTimeout(() => setLocalBidCooldown(false), 1000);
+
+    updateState((draft) => {
+      const price = draft.auction.leaderId ? draft.auction.bid + 25 : 50;
+      if (draft.captainData[user.id].budget < price) return;
+      draft.auction.bid = price;
+      draft.auction.leaderId = user.id;
+      draft.auction.countdownEndTime = null;
+      draft.auction.lastBidTime = Date.now();
+      draft.auction.history.unshift({ type: 'bid', text: `${state.captains.find((c) => c.id === user.id)?.handle || state.captains.find((c) => c.id === user.id)?.tag || ''} bid ${price}` });
+    });
+  };
   const rivalBid = () => updateState((draft) => {
     const rivalPrice = draft.auction.leaderId ? draft.auction.bid + 25 : 50;
     const rivals = state.captains.filter((captain) => (
@@ -2192,6 +2244,8 @@ function BiddingRoom({ user, state, updateState, onReset }) {
     const rival = rivals[Math.floor(Math.random() * rivals.length)];
     draft.auction.bid = rivalPrice;
     draft.auction.leaderId = rival.id;
+    draft.auction.countdownEndTime = null;
+    draft.auction.lastBidTime = Date.now();
     draft.auction.history.unshift({ type: 'bid', text: `${rival.handle || rival.tag || ''} bid ${draft.auction.bid}` });
   });
   const sell = () => updateState((draft) => {
@@ -2247,8 +2301,8 @@ function BiddingRoom({ user, state, updateState, onReset }) {
               <Clock3 size={15} /> Closing in {timeLeft}s
             </div>
           )}
-          <button className="bid-button" onClick={bid} disabled={!canAfford || auction.leaderId === user.id}>
-            <span>Place bid</span><strong><Coins size={22} /> {nextBid}</strong>
+          <button className="bid-button" onClick={bid} disabled={!canAfford || auction.leaderId === user.id || isBidLocked}>
+            <span>{isBidLocked ? 'Processing bid...' : 'Place bid'}</span><strong><Coins size={22} /> {nextBid}</strong>
           </button>
           <p className="bid-helper">You have <b>{money(state.captainData[user.id].budget)}</b> coins available.{squadFull && <><br /><b>Your squad is full.</b></>}</p>
         </section>
@@ -2395,19 +2449,99 @@ function AuctionRoom({ startingBudget, goTournament, ...props }) {
 }
 
 function TournamentHub({ user, state, updateState }) {
+  const isOrganizer = user?.role === 'organizer';
   const competition = state.competition || createCompetition();
   const standings = calculateStandings(state.captains, competition.matches || []);
   const nextMatch = (competition.matches || []).find((match) => match.status !== 'completed');
   const [matchDate, setMatchDate] = useState(nextMatch?.scheduledAt || suggestKickoffDate());
 
+  const [hScore, setHScore] = useState(0);
+  const [aScore, setAScore] = useState(0);
+  const [hScorers, setHScorers] = useState([]);
+  const [aScorers, setAScorers] = useState([]);
+
   useEffect(() => { setMatchDate(nextMatch?.scheduledAt || suggestKickoffDate()); }, [nextMatch?.id, nextMatch?.scheduledAt]);
 
   const clubFor = (teamId) => getClubInfo(state.captains.find((captain) => captain.id === teamId));
+  
+  const homeSquad = state.captainData?.[nextMatch?.homeId]?.squad || [];
+  const homeCapId = nextMatch?.homeId;
+  const homePlayers = homeCapId ? [
+    { id: homeCapId, tag: state.captains.find((c) => c.id === homeCapId)?.handle || state.captains.find((c) => c.id === homeCapId)?.tag || 'Captain' },
+    ...homeSquad.filter((pid) => pid !== homeCapId).map((pid) => {
+      const p = state.players.find((player) => player.id === pid);
+      return { id: pid, tag: p?.tag || p?.name || 'Player' };
+    })
+  ] : [];
+
+  const awaySquad = state.captainData?.[nextMatch?.awayId]?.squad || [];
+  const awayCapId = nextMatch?.awayId;
+  const awayPlayers = awayCapId ? [
+    { id: awayCapId, tag: state.captains.find((c) => c.id === awayCapId)?.handle || state.captains.find((c) => c.id === awayCapId)?.tag || 'Captain' },
+    ...awaySquad.filter((pid) => pid !== awayCapId).map((pid) => {
+      const p = state.players.find((player) => player.id === pid);
+      return { id: pid, tag: p?.tag || p?.name || 'Player' };
+    })
+  ] : [];
+
+  const formatDateTimeLocal = (dateStr) => {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return '';
+    const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+    return local.toISOString().slice(0, 16);
+  };
+
+  const handleHomeScoreChange = (score) => {
+    const nextScore = Math.max(0, score);
+    setHScore(nextScore);
+    setHScorers((prev) => {
+      const arr = [...prev];
+      if (arr.length < nextScore) {
+        while (arr.length < nextScore) arr.push(homePlayers[0]?.id || '');
+      } else {
+        arr.length = nextScore;
+      }
+      return arr;
+    });
+  };
+
+  const handleAwayScoreChange = (score) => {
+    const nextScore = Math.max(0, score);
+    setAScore(nextScore);
+    setAScorers((prev) => {
+      const arr = [...prev];
+      if (arr.length < nextScore) {
+        while (arr.length < nextScore) arr.push(awayPlayers[0]?.id || '');
+      } else {
+        arr.length = nextScore;
+      }
+      return arr;
+    });
+  };
+
+  const updateHomeScorer = (index, value) => {
+    setHScorers((prev) => {
+      const arr = [...prev];
+      arr[index] = value;
+      return arr;
+    });
+  };
+
+  const updateAwayScorer = (index, value) => {
+    setAScorers((prev) => {
+      const arr = [...prev];
+      arr[index] = value;
+      return arr;
+    });
+  };
+
   const startCompetition = (draftCompetition) => {
     draftCompetition.phase = 'league';
     draftCompetition.matches = createLeagueFixtures(state.captains.map((captain) => captain.id));
     draftCompetition.playerStats = [];
   };
+
   const setReady = (everyone = false) => updateState((draft) => {
     if (!draft.competition) draft.competition = createCompetition();
     if (everyone) {
@@ -2420,6 +2554,7 @@ function TournamentHub({ user, state, updateState }) {
     const allReady = draft.captains.every((captain) => draft.captainData[captain.id]?.squadConfirmed);
     if (allReady && draft.competition.phase === 'ready') startCompetition(draft.competition);
   });
+
   const resetFixtures = () => {
     if (!window.confirm('Reset official fixtures to opening day? This clears match dates, results, standings, and scorer stats.')) return;
     updateState((draft) => {
@@ -2430,6 +2565,7 @@ function TournamentHub({ user, state, updateState }) {
       draft.competition.playerStats = [];
     });
   };
+
   const scheduleMatch = () => {
     if (!nextMatch || !matchDate) return;
     updateState((draft) => {
@@ -2438,33 +2574,80 @@ function TournamentHub({ user, state, updateState }) {
       match.status = 'scheduled';
     });
   };
-  const simulateMatchmakerResult = () => updateState((draft) => {
-    const draftCompetition = draft.competition;
-    const match = draftCompetition.matches.find((item) => item.id === nextMatch?.id);
-    if (!match) return;
-    const completedCount = draftCompetition.matches.filter((item) => item.status === 'completed').length;
-    const scorePatterns = [[2, 1], [1, 1], [3, 0], [1, 2], [2, 2], [0, 1], [2, 0], [1, 3]];
-    const [homeScore, awayScore] = scorePatterns[completedCount % scorePatterns.length];
-    match.homeScore = homeScore; match.awayScore = awayScore; match.status = 'completed';
-    if (!match.scheduledAt) match.scheduledAt = new Date().toISOString().slice(0, 16);
-    const scorerFor = (teamId) => {
-      const playerId = (draft.captainData[teamId]?.squad || []).find((id) => id !== teamId);
-      const player = draft.players.find((item) => item.id === playerId);
-      const captain = draft.captains.find((item) => item.id === teamId);
-      return { playerId: player?.id || captain?.id, name: player?.tag || captain?.handle || 'Captain' };
-    };
-    [[match.homeId, homeScore], [match.awayId, awayScore]].forEach(([teamId, goals]) => {
-      if (!goals) return;
-      const scorer = scorerFor(teamId);
-      draftCompetition.playerStats.push({ matchId: match.id, teamId, ...scorer, goals });
+
+  const reportMatchResult = (hScoreVal, aScoreVal, hScorerIds, aScorerIds) => {
+    updateState((draft) => {
+      const draftCompetition = draft.competition;
+      const match = draftCompetition.matches.find((item) => item.id === nextMatch?.id);
+      if (!match) return;
+
+      match.homeScore = hScoreVal;
+      match.awayScore = aScoreVal;
+      match.status = 'completed';
+      if (!match.scheduledAt) match.scheduledAt = new Date().toISOString().slice(0, 16);
+
+      hScorerIds.forEach((pid) => {
+        const player = draft.players.find((p) => p.id === pid);
+        const captain = draft.captains.find((c) => c.id === pid);
+        const name = player?.tag || captain?.handle || captain?.tag || 'Player';
+        draftCompetition.playerStats.push({ matchId: match.id, teamId: match.homeId, playerId: pid, name, goals: 1 });
+      });
+
+      aScorerIds.forEach((pid) => {
+        const player = draft.players.find((p) => p.id === pid);
+        const captain = draft.captains.find((c) => c.id === pid);
+        const name = player?.tag || captain?.handle || captain?.tag || 'Player';
+        draftCompetition.playerStats.push({ matchId: match.id, teamId: match.awayId, playerId: pid, name, goals: 1 });
+      });
+
+      const leagueMatches = draftCompetition.matches.filter((item) => item.stage === 'league');
+      if (leagueMatches.length && leagueMatches.every((item) => item.status === 'completed') && !draftCompetition.matches.some((item) => item.stage === 'finals')) {
+        const finalStandings = calculateStandings(draft.captains, draftCompetition.matches);
+        draftCompetition.matches.push(...createFinalFixtures(finalStandings));
+        draftCompetition.phase = 'finals';
+      } else if (match.id === 'championship-final') {
+        draftCompetition.phase = 'complete';
+      }
     });
-    const leagueMatches = draftCompetition.matches.filter((item) => item.stage === 'league');
-    if (leagueMatches.length && leagueMatches.every((item) => item.status === 'completed') && !draftCompetition.matches.some((item) => item.stage === 'finals')) {
-      const finalStandings = calculateStandings(draft.captains, draftCompetition.matches);
-      draftCompetition.matches.push(...createFinalFixtures(finalStandings));
-      draftCompetition.phase = 'finals';
-    } else if (match.id === 'championship-final') draftCompetition.phase = 'complete';
-  });
+  };
+
+  const submitScore = () => {
+    if (hScore > 0 && hScorers.some((id) => !id)) {
+      alert('Please select a player for all home goals.');
+      return;
+    }
+    if (aScore > 0 && aScorers.some((id) => !id)) {
+      alert('Please select a player for all away goals.');
+      return;
+    }
+    reportMatchResult(hScore, aScore, hScorers, aScorers);
+    setHScore(0);
+    setAScore(0);
+    setHScorers([]);
+    setAScorers([]);
+  };
+
+  const simulateMatchmakerResult = () => {
+    const homeCount = homePlayers.length;
+    const awayCount = awayPlayers.length;
+    if (!homeCount || !awayCount) return;
+
+    const completedCount = competition.matches.filter((item) => item.status === 'completed').length;
+    const scorePatterns = [[2, 1], [1, 1], [3, 0], [1, 2], [2, 2], [0, 1], [2, 0], [1, 3]];
+    const [hSimScore, aSimScore] = scorePatterns[completedCount % scorePatterns.length];
+
+    const hSimScorers = Array.from({ length: hSimScore }).map(() => {
+      const idx = Math.floor(Math.random() * homeCount);
+      return homePlayers[idx].id;
+    });
+
+    const aSimScorers = Array.from({ length: aSimScore }).map(() => {
+      const idx = Math.floor(Math.random() * awayCount);
+      return awayPlayers[idx].id;
+    });
+
+    reportMatchResult(hSimScore, aSimScore, hSimScorers, aSimScorers);
+  };
 
   const topScorerFor = (teamId) => {
     const totals = (competition.playerStats || []).filter((stat) => stat.teamId === teamId).reduce((map, stat) => ({ ...map, [stat.name]: (map[stat.name] || 0) + stat.goals }), {});
@@ -2481,7 +2664,7 @@ function TournamentHub({ user, state, updateState }) {
       <>
         <header className="page-header"><div><span className="page-kicker">Auction complete</span><h1>Lock in your club.</h1><p>All captains must confirm their squad before Matchmaker releases the official tournament path.</p></div><span className="status-pill good"><BadgeCheck size={14} /> Squads locked</span></header>
         <section className="panel ready-room">
-          <div className="ready-room-head"><div><span className="section-step">01</span><h2>Captain ready check</h2><p>{readyIds.size} of {state.captains.length} squads confirmed</p></div><button className="ghost" onClick={() => setReady(true)}><Sparkles size={16} /> Make everyone ready · Demo</button></div>
+          <div className="ready-room-head"><div><span className="section-step">01</span><h2>Captain ready check</h2><p>{readyIds.size} of {state.captains.length} squads confirmed</p></div>{isOrganizer && <button className="ghost" onClick={() => setReady(true)}><Sparkles size={16} /> Make everyone ready · Demo</button>}</div>
           <div className="ready-club-grid">
             {state.captains.map((captain) => {
               const club = getClubInfo(captain);
@@ -2495,20 +2678,114 @@ function TournamentHub({ user, state, updateState }) {
               );
             })}
           </div>
-          <div className="ready-actions"><button className="primary" disabled={readyIds.has(user.id)} onClick={() => setReady(false)}><BadgeCheck size={17} /> {readyIds.has(user.id) ? 'Squad confirmed' : 'I am ready'}</button><p>Scrims are always open and never affect official standings.</p></div>
+          <div className="ready-actions">
+            {isOrganizer ? (
+              <button className="primary" onClick={() => setReady(true)}><BadgeCheck size={17} /> Confirm all squads and start</button>
+            ) : (
+              <button className="primary" disabled={readyIds.has(user.id)} onClick={() => setReady(false)}><BadgeCheck size={17} /> {readyIds.has(user.id) ? 'Squad confirmed' : 'I am ready'}</button>
+            )}
+            <p>Scrims are always open and never affect official standings.</p>
+          </div>
         </section>
-        <section className="format-explainer"><div><strong>01</strong><span><b>Round robin</b><small>Every club faces all three rivals once.</small></span></div><ArrowRight size={18} /><div><strong>02</strong><span><b>Shield match</b><small>3rd and 4th settle placement.</small></span></div><ArrowRight size={18} /><div><strong>03</strong><span><b>Championship Final</b><small>Top two play for the title.</small></span></div></section>
+        <section className="format-explainer"><div><strong>01</strong><span><b>Home and Away</b><small>Each club plays every rival twice (6 rounds total).</small></span></div><ArrowRight size={18} /><div><strong>02</strong><span><b>Shield match</b><small>3rd and 4th settle placement.</small></span></div><ArrowRight size={18} /><div><strong>03</strong><span><b>Championship Final</b><small>Top two play for the title.</small></span></div></section>
       </>
     );
   }
 
   return (
     <>
-      <header className="page-header tournament-hub-header"><div><span className="page-kicker">Matchmaker · {competition.phase === 'finals' ? 'Finals' : competition.phase === 'complete' ? 'Complete' : 'League stage'}</span><h1>The road to the trophy.</h1><p>Official fixtures count toward standings. Clubs may arrange unlimited scrims between them.</p></div><div className="tournament-header-actions"><span className="status-pill good"><Radio size={14} /> Matchmaker connected</span><button className="ghost btn-danger" onClick={resetFixtures}><RotateCcw size={16} /> Reset fixtures · Test</button></div></header>
+      <header className="page-header tournament-hub-header"><div><span className="page-kicker">Matchmaker · {competition.phase === 'finals' ? 'Finals' : competition.phase === 'complete' ? 'Complete' : 'League stage'}</span><h1>The road to the trophy.</h1><p>Official fixtures count toward standings. Clubs may arrange unlimited scrims between them.</p></div><div className="tournament-header-actions"><span className="status-pill good"><Radio size={14} /> Matchmaker connected</span>{isOrganizer && (<button className="ghost btn-danger" onClick={resetFixtures}><RotateCcw size={16} /> Reset fixtures · Test</button>)}</div></header>
       <div className="tournament-metric-grid"><div><span>Official matches</span><strong>{completedMatches.length}/{competition.matches.length}</strong></div><div><span>Total goals</span><strong>{totalGoals}</strong></div><div><span>League leader</span><strong>{standings[0] ? clubFor(standings[0].teamId).name : '—'}</strong></div><div><span>Tightest defense</span><strong>{tightestDefense ? `${clubFor(tightestDefense.teamId).name} · ${tightestDefense.ga} GA` : '—'}</strong></div></div>
       <div className="tournament-hub-grid">
         <section className="panel standings-table"><div className="panel-head"><div><span className="section-step">01</span><h2>League table</h2></div><Trophy size={18} /></div><div className="standings-row standings-head"><span>#</span><span>Club</span><span>P</span><span>GD</span><span>Pts</span></div>{standings.map((row, index) => { const club = clubFor(row.teamId); return <div className="standings-row" key={row.teamId}><b>{index + 1}</b><span><ClubMark club={club} size="xs" /><strong>{club.name}</strong></span><span>{row.played}</span><span>{row.gf - row.ga > 0 ? '+' : ''}{row.gf - row.ga}</span><strong>{row.points}</strong></div>; })}</section>
-        <aside className="panel next-match-card"><span className="page-kicker">Matchmaker recommends next</span>{nextMatch ? <><div className="match-stage">{nextMatch.label}</div><div className="match-versus"><div><ClubMark club={clubFor(nextMatch.homeId)} size="lg" /><strong>{clubFor(nextMatch.homeId).name}</strong></div><b>VS</b><div><ClubMark club={clubFor(nextMatch.awayId)} size="lg" /><strong>{clubFor(nextMatch.awayId).name}</strong></div></div><label><span>Captains agree on kickoff</span><input type="datetime-local" value={matchDate} onInput={(event) => setMatchDate(event.currentTarget.value)} /></label><button className="secondary full" onClick={scheduleMatch} disabled={!matchDate}><CalendarDays size={16} /> {nextMatch.status === 'scheduled' ? 'Update match date' : 'Confirm match date'}</button>{nextMatch.scheduledAt && <p className="scheduled-note"><CheckCircle2 size={14} /> Scheduled · {new Date(nextMatch.scheduledAt).toLocaleString()}</p>}<button className="ghost full matchmaker-demo" onClick={simulateMatchmakerResult}><Sparkles size={16} /> Simulate Matchmaker result</button></> : <div className="tournament-complete"><Crown size={42} /><h2>Tournament complete</h2><p>All official fixtures have been reported.</p></div>}</aside>
+        <aside className="panel next-match-card">
+          <span className="page-kicker">Matchmaker recommends next</span>
+          {nextMatch ? (
+            <>
+              <div className="match-stage">{nextMatch.label}</div>
+              <div className="match-versus">
+                <div><ClubMark club={clubFor(nextMatch.homeId)} size="lg" /><strong>{clubFor(nextMatch.homeId).name}</strong></div>
+                <b>VS</b>
+                <div><ClubMark club={clubFor(nextMatch.awayId)} size="lg" /><strong>{clubFor(nextMatch.awayId).name}</strong></div>
+              </div>
+              
+              {isOrganizer ? (
+                <>
+                  <label style={{ display: 'block', marginTop: '16px' }}>
+                    <span>Schedule match kickoff</span>
+                    <input type="datetime-local" value={formatDateTimeLocal(matchDate)} onChange={(event) => setMatchDate(event.target.value)} />
+                  </label>
+                  <button className="secondary full" onClick={scheduleMatch} disabled={!matchDate} style={{ marginBottom: '14px' }}><CalendarDays size={16} /> {nextMatch.status === 'scheduled' ? 'Update match date' : 'Confirm match date'}</button>
+                  
+                  {/* Organizer Score Entry Form */}
+                  <div className="report-score-panel" style={{ borderTop: '1px solid var(--line)', paddingTop: '16px', marginTop: '10px' }}>
+                    <h4 style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px' }}>Report Score</h4>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', gap: '12px', marginBottom: '16px', textAlign: 'center' }}>
+                      <div>
+                        <small style={{ display: 'block', marginBottom: '4px', fontSize: '9px', textTransform: 'uppercase', color: 'var(--muted)' }}>{clubFor(nextMatch.homeId).name}</small>
+                        <input type="number" min="0" max="20" value={hScore} onChange={(e) => handleHomeScoreChange(Number(e.target.value))} style={{ width: '60px', textAlign: 'center', fontSize: '16px', padding: '6px', background: 'var(--card)', border: '1px solid var(--line)', color: 'var(--ink)', borderRadius: '4px' }} />
+                      </div>
+                      <span style={{ fontWeight: 'bold', fontSize: '18px', color: 'var(--muted)' }}>-</span>
+                      <div>
+                        <small style={{ display: 'block', marginBottom: '4px', fontSize: '9px', textTransform: 'uppercase', color: 'var(--muted)' }}>{clubFor(nextMatch.awayId).name}</small>
+                        <input type="number" min="0" max="20" value={aScore} onChange={(e) => handleAwayScoreChange(Number(e.target.value))} style={{ width: '60px', textAlign: 'center', fontSize: '16px', padding: '6px', background: 'var(--card)', border: '1px solid var(--line)', color: 'var(--ink)', borderRadius: '4px' }} />
+                      </div>
+                    </div>
+
+                    {/* Scorer lists */}
+                    {hScore > 0 && (
+                      <div style={{ marginBottom: '12px', textAlign: 'left' }}>
+                        <small style={{ color: 'var(--muted)', display: 'block', marginBottom: '6px', fontSize: '9px', textTransform: 'uppercase' }}>Home Scorers</small>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          {Array.from({ length: hScore }).map((_, i) => (
+                            <select key={`home-${i}`} value={hScorers[i] || ''} onChange={(e) => updateHomeScorer(i, e.target.value)} style={{ width: '100%', padding: '6px', fontSize: '11px', background: 'var(--card)', color: 'var(--ink)', border: '1px solid var(--line)', borderRadius: '4px' }}>
+                              <option value="">Select Scorer</option>
+                              {homePlayers.map((p) => <option key={p.id} value={p.id}>{p.tag}</option>)}
+                            </select>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {aScore > 0 && (
+                      <div style={{ marginBottom: '16px', textAlign: 'left' }}>
+                        <small style={{ color: 'var(--muted)', display: 'block', marginBottom: '6px', fontSize: '9px', textTransform: 'uppercase' }}>Away Scorers</small>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          {Array.from({ length: aScore }).map((_, i) => (
+                            <select key={`away-${i}`} value={aScorers[i] || ''} onChange={(e) => updateAwayScorer(i, e.target.value)} style={{ width: '100%', padding: '6px', fontSize: '11px', background: 'var(--card)', color: 'var(--ink)', border: '1px solid var(--line)', borderRadius: '4px' }}>
+                              <option value="">Select Scorer</option>
+                              {awayPlayers.map((p) => <option key={p.id} value={p.id}>{p.tag}</option>)}
+                            </select>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <button className="primary full" onClick={submitScore} style={{ fontSize: '11px', padding: '10px' }}><CheckCircle2 size={15} /> Submit Results</button>
+                    <button className="ghost full matchmaker-demo" onClick={simulateMatchmakerResult} style={{ marginTop: '8px', fontSize: '10px' }}><Sparkles size={13} /> Auto-simulate instead</button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="scheduled-time-box" style={{ background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '12px', padding: '16px', margin: '16px 0', textAlign: 'center' }}>
+                    <Clock3 size={16} style={{ marginRight: '6px', color: 'var(--lime)', verticalAlign: 'middle', display: 'inline-block' }} />
+                    <span style={{ fontSize: '12px', fontWeight: 'bold' }}>
+                      {nextMatch.scheduledAt ? new Date(nextMatch.scheduledAt).toLocaleString() : 'Kickoff Date TBD'}
+                    </span>
+                  </div>
+                  <p style={{ fontSize: '11px', color: 'var(--muted)', textAlign: 'center', margin: '10px 0 0' }}>
+                    Waiting for Organizer to report match score.
+                  </p>
+                </>
+              )}
+              {nextMatch.scheduledAt && isOrganizer && (
+                <p className="scheduled-note"><CheckCircle2 size={14} /> Scheduled · {new Date(nextMatch.scheduledAt).toLocaleString()}</p>
+              )}
+            </>
+          ) : (
+            <div className="tournament-complete"><Crown size={42} /><h2>Tournament complete</h2><p>All official fixtures have been reported.</p></div>
+          )}
+        </aside>
       </div>
       <div className="tournament-lower-grid">
         <section className="panel top-scorers"><div className="panel-head"><div><span className="section-step">02</span><h2>Club top scorers</h2></div><Goal size={18} /></div>{state.captains.map((captain) => { const club = getClubInfo(captain); return <div key={captain.id}><ClubMark club={club} size="xs" /><span><strong>{club.name}</strong><small>{topScorerFor(captain.id)}</small></span></div>; })}</section>
@@ -2921,7 +3198,7 @@ export default function App() {
 
   let view;
   if (!user) view = <Login onLogin={login} players={state.players} captains={loginCaptains} />;
-  else if (user.role === 'organizer') view = <OrganizerDashboard state={state} updateState={updateState} onLogout={logout} />;
+  else if (user.role === 'organizer') view = <OrganizerDashboard state={state} updateState={updateState} onLogout={logout} tournamentState={tournamentState} updateTournamentState={updateTournamentState} />;
   else if (!tournament) view = <TournamentSelector user={user} state={state} onSelect={setSelectedTournamentId} onLogout={logout} />;
   else view = (
     <AppShell user={user} active={active} setActive={setActive} onLogout={logout} onChangeTournament={() => setSelectedTournamentId(null)} budget={budget} tournament={tournament} players={state.players} captains={tournamentState.captains} profileSetup={profileSetup} allPlayersAssigned={allPlayersAssigned} auction={tournamentState?.auction}>
