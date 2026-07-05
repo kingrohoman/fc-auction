@@ -351,9 +351,20 @@ const stripLegacyTournamentKeys = (map = {}) => Object.fromEntries(
 );
 
 const sanitizeState = (state) => {
+  const cleanedTournamentPlayerIds = Object.fromEntries(Object.entries(stripLegacyTournamentKeys(state.tournamentPlayerIds || {})).map(([tournamentId, playerIds]) => [
+    tournamentId,
+    removeLegacySeedPlayerRefs(playerIds || []),
+  ]));
+
+  const activePlayerIds = new Set();
+  Object.values(cleanedTournamentPlayerIds).forEach((playerIds) => {
+    (playerIds || []).forEach((pid) => activePlayerIds.add(pid));
+  });
+
   const cleaned = {
     ...state,
-    players: (state.players || []).filter((player) => !legacySeedPlayerIds.has(player.id) && !legacyCaptainIds.has(player.id)),
+    players: (state.players || [])
+      .filter((player) => !legacySeedPlayerIds.has(player.id) && !legacyCaptainIds.has(player.id) && activePlayerIds.has(player.id)),
     captainData: sanitizeCaptainData(state.captainData),
     tournaments: (state.tournaments || [])
       .filter((tournament) => !legacyTournamentIds.has(tournament.id))
@@ -361,10 +372,7 @@ const sanitizeState = (state) => {
         ...tournament,
         captains: (tournament.captains || []).filter((captain) => !legacyCaptainIds.has(captain.id)),
       })),
-    tournamentPlayerIds: Object.fromEntries(Object.entries(stripLegacyTournamentKeys(state.tournamentPlayerIds || {})).map(([tournamentId, playerIds]) => [
-      tournamentId,
-      removeLegacySeedPlayerRefs(playerIds || []),
-    ])),
+    tournamentPlayerIds: cleanedTournamentPlayerIds,
     tournamentCaptainData: Object.fromEntries(Object.entries(stripLegacyTournamentKeys(state.tournamentCaptainData || {})).map(([tournamentId, captainData]) => [
       tournamentId,
       sanitizeCaptainData(captainData),
@@ -705,6 +713,13 @@ function OrganizerDashboard({ state, updateState, onLogout }) {
       delete draft.tournamentCaptainData[id];
       delete draft.tournamentAuctions[id];
       delete draft.tournamentCompetitions[id];
+
+      // Cleanup orphaned players
+      const activePlayerIds = new Set();
+      Object.values(draft.tournamentPlayerIds || {}).forEach((playerIds) => {
+        (playerIds || []).forEach((pid) => activePlayerIds.add(pid));
+      });
+      draft.players = (draft.players || []).filter((player) => activePlayerIds.has(player.id));
     });
     const remaining = state.tournaments.filter((item) => item.id !== id);
     if (remaining.length > 0) {
@@ -729,6 +744,13 @@ function OrganizerDashboard({ state, updateState, onLogout }) {
       draft.tournamentCaptainData[tournament.id] = {};
       draft.tournamentAuctions[tournament.id] = createAuction();
       draft.tournamentCompetitions[tournament.id] = createCompetition();
+
+      // Cleanup orphaned players
+      const activePlayerIds = new Set();
+      Object.values(draft.tournamentPlayerIds || {}).forEach((playerIds) => {
+        (playerIds || []).forEach((pid) => activePlayerIds.add(pid));
+      });
+      draft.players = (draft.players || []).filter((player) => activePlayerIds.has(player.id));
     });
     setCsvRows([]);
     setImportMessage('');
@@ -779,6 +801,13 @@ function OrganizerDashboard({ state, updateState, onLogout }) {
       if (draft.tournamentCaptainData[tournament.id]) {
         delete draft.tournamentCaptainData[tournament.id][playerId];
       }
+
+      // Cleanup orphaned players
+      const activePlayerIds = new Set();
+      Object.values(draft.tournamentPlayerIds || {}).forEach((playerIds) => {
+        (playerIds || []).forEach((pid) => activePlayerIds.add(pid));
+      });
+      draft.players = (draft.players || []).filter((player) => activePlayerIds.has(player.id));
     });
   };
 
