@@ -3,3 +3,5 @@ node_modules.corrupt-*/
 dist/
 .vite/
 *.log
+.env
+.env.local

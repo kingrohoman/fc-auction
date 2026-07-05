@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowRight,
   BadgeCheck,
@@ -38,8 +38,10 @@ import {
   X,
   Zap,
 } from 'lucide-react';
+import { SUPABASE_STATE_ID, SUPABASE_STATE_TABLE, hasSupabaseConfig, supabase } from './supabaseClient';
 
 const STORAGE_KEY = 'clubhouse-fc26-v1';
+const CLOUD_SYNC_LABEL = hasSupabaseConfig ? 'Live sync on' : 'Local mode';
 
 const POSITIONS = ['GK', 'CB', 'LB', 'RB', 'CDM', 'CM', 'CAM', 'LM', 'RM', 'LW', 'RW', 'ST'];
 
@@ -393,6 +395,46 @@ function loadState() {
     return createDefaultState();
   }
 }
+
+const normalizeLoadedState = (saved) => {
+  if (!saved?.players || !saved?.captainData || !saved?.auction) return createDefaultState();
+  const base = createDefaultState();
+  const cleanedSaved = sanitizeState(saved);
+  const normalized = { ...base, ...cleanedSaved, captainData: { ...base.captainData } };
+  const needsDemoPicks = false;
+  const soldPlayerIds = new Set(Object.values(cleanedSaved.captainData).flatMap((data) => data.squad || []));
+  captains.forEach((captain) => {
+    const prior = cleanedSaved.captainData[captain.id] || {};
+    const formation = formations[prior.formation] ? prior.formation : '4-3-3';
+    const activeSpots = new Set(formations[formation].map((spot) => spot.id));
+    const lineup = Object.fromEntries(Object.entries(prior.lineup || {}).filter(([spotId]) => activeSpots.has(spotId)));
+    const captainMemberId = `captain:${captain.id}`;
+    if (!Object.values(lineup).includes(captainMemberId)) lineup.GK = captainMemberId;
+    const seededShortlist = demoCaptainShortlists[captain.id]?.filter((playerId) => !soldPlayerIds.has(playerId)) || [];
+    const shortlist = needsDemoPicks && captain.id !== 'cap-tariq' && !prior.shortlist?.length ? seededShortlist : (prior.shortlist || base.captainData[captain.id].shortlist);
+    normalized.captainData[captain.id] = { ...base.captainData[captain.id], ...prior, formation, lineup, shortlist };
+  });
+  normalized.demoPicksVersion = 1;
+  normalized.tournaments = cleanedSaved.tournaments?.length ? cleanedSaved.tournaments : seedTournaments;
+  normalized.tournamentPlayerIds = cleanedSaved.tournamentPlayerIds || { 't-friday-night': normalized.players.map((player) => player.id) };
+  normalized.tournamentCaptainData = cleanedSaved.tournamentCaptainData || { 't-friday-night': normalized.captainData };
+  normalized.tournamentAuctions = cleanedSaved.tournamentAuctions || { 't-friday-night': normalized.auction };
+  normalized.tournamentCompetitions = cleanedSaved.tournamentCompetitions || { 't-friday-night': createCompetition() };
+  normalized.tournaments.forEach((tournament) => {
+    if (tournament.id === 't-friday-night' && !tournament.captains) tournament.captains = captains.map((captain) => ({ ...captain }));
+    if (tournament.captains) {
+      tournament.captains = tournament.captains.map((captain) => ({
+        ...captain,
+        club: { ...getClubInfo(captain), color: undefined, initials: undefined },
+      }));
+    }
+    if (!normalized.tournamentPlayerIds[tournament.id]) normalized.tournamentPlayerIds[tournament.id] = [];
+    if (!normalized.tournamentCaptainData[tournament.id]) normalized.tournamentCaptainData[tournament.id] = createCaptainData(tournament.budget);
+    if (!normalized.tournamentAuctions[tournament.id]) normalized.tournamentAuctions[tournament.id] = createAuction();
+    if (!normalized.tournamentCompetitions[tournament.id]) normalized.tournamentCompetitions[tournament.id] = createCompetition();
+  });
+  return normalized;
+};
 
 const money = (amount) => amount.toLocaleString();
 
@@ -1978,12 +2020,117 @@ function PlayerPool({ state }) {
 export default function App() {
   const [user, setUser] = useState(null);
   const [state, setState] = useState(loadState);
+  const [syncStatus, setSyncStatus] = useState(CLOUD_SYNC_LABEL);
   const [active, setActive] = useState('squad');
   const [selectedTournamentId, setSelectedTournamentId] = useState(null);
   const [theme, setTheme] = useState(() => localStorage.getItem('clubhouse-theme') || 'dark');
+  const applyingRemoteState = useRef(false);
+  const cloudReady = useRef(!hasSupabaseConfig);
+  const saveTimer = useRef(null);
 
   useEffect(() => { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }, [state]);
   useEffect(() => { document.documentElement.dataset.theme = theme; localStorage.setItem('clubhouse-theme', theme); }, [theme]);
+  useEffect(() => {
+    if (!supabase) return undefined;
+
+    let isMounted = true;
+
+    const loadCloudState = async () => {
+      setSyncStatus('Connecting live sync');
+      const { data, error } = await supabase
+        .from(SUPABASE_STATE_TABLE)
+        .select('state')
+        .eq('id', SUPABASE_STATE_ID)
+        .maybeSingle();
+
+      if (!isMounted) return;
+
+      if (error) {
+        console.error('Supabase load failed', error);
+        setSyncStatus('Live sync error');
+        cloudReady.current = true;
+        return;
+      }
+
+      if (data?.state) {
+        applyingRemoteState.current = true;
+        setState(normalizeLoadedState(data.state));
+        setSyncStatus('Live sync on');
+      } else {
+        const initialState = normalizeLoadedState(state);
+        const { error: seedError } = await supabase
+          .from(SUPABASE_STATE_TABLE)
+          .upsert({ id: SUPABASE_STATE_ID, state: initialState, updated_at: new Date().toISOString() });
+        if (seedError) {
+          console.error('Supabase seed failed', seedError);
+          setSyncStatus('Live sync error');
+        } else {
+          setSyncStatus('Live sync on');
+        }
+      }
+      cloudReady.current = true;
+    };
+
+    const channel = supabase
+      .channel('fc-auction-state')
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: SUPABASE_STATE_TABLE, filter: `id=eq.${SUPABASE_STATE_ID}` },
+        (payload) => {
+          if (!payload.new?.state) return;
+          applyingRemoteState.current = true;
+          setState(normalizeLoadedState(payload.new.state));
+          setSyncStatus('Live sync on');
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: SUPABASE_STATE_TABLE, filter: `id=eq.${SUPABASE_STATE_ID}` },
+        (payload) => {
+          if (!payload.new?.state) return;
+          applyingRemoteState.current = true;
+          setState(normalizeLoadedState(payload.new.state));
+          setSyncStatus('Live sync on');
+        }
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') setSyncStatus('Live sync on');
+      });
+
+    loadCloudState();
+
+    return () => {
+      isMounted = false;
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!supabase || !cloudReady.current) return undefined;
+    if (applyingRemoteState.current) {
+      applyingRemoteState.current = false;
+      return undefined;
+    }
+
+    setSyncStatus('Saving live state');
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = window.setTimeout(async () => {
+      const { error } = await supabase
+        .from(SUPABASE_STATE_TABLE)
+        .upsert({ id: SUPABASE_STATE_ID, state: normalizeLoadedState(state), updated_at: new Date().toISOString() });
+      if (error) {
+        console.error('Supabase save failed', error);
+        setSyncStatus('Live sync error');
+      } else {
+        setSyncStatus('Live sync on');
+      }
+    }, 350);
+
+    return () => {
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+    };
+  }, [state]);
+
   const updateState = (recipe) => setState((current) => {
     const draft = structuredClone(current); recipe(draft); return draft;
   });
@@ -2056,6 +2203,10 @@ export default function App() {
     </AppShell>
   );
   return (
-    <><ThemeToggle theme={theme} onToggle={() => setTheme((value) => value === 'dark' ? 'light' : 'dark')} />{view}</>
+    <>
+      <ThemeToggle theme={theme} onToggle={() => setTheme((value) => value === 'dark' ? 'light' : 'dark')} />
+      <div className={`sync-status ${syncStatus === 'Live sync error' ? 'error' : ''}`}>{syncStatus}</div>
+      {view}
+    </>
   );
 }

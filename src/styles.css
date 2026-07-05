@@ -227,6 +227,8 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .complete-squad-list strong { font-size: 10px; }
 .complete-squad-list small { color: var(--muted); font-size: 8px; }
 .theme-toggle { position: fixed; z-index: 100; top: 18px; right: 20px; display: flex; align-items: center; gap: 7px; padding: 9px 11px; border: 1px solid var(--line); border-radius: 10px; color: var(--ink); background: color-mix(in srgb, var(--panel) 92%, transparent); box-shadow: 0 8px 25px rgba(0,0,0,.12); backdrop-filter: blur(12px); font-size: 9px; font-weight: 800; }
+.sync-status { position: fixed; z-index: 100; top: 62px; right: 20px; padding: 7px 10px; border: 1px solid rgba(217,255,99,.18); border-radius: 999px; color: var(--lime); background: color-mix(in srgb, var(--panel) 92%, transparent); box-shadow: 0 8px 25px rgba(0,0,0,.12); backdrop-filter: blur(12px); font-size: 8px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; }
+.sync-status.error { color: #ff9e9e; border-color: rgba(255,120,120,.25); }
 .organizer-login-note { display: flex; align-items: center; gap: 12px; min-height: 74px; padding: 14px; margin-bottom: 14px; border: 1px solid rgba(217,255,99,.16); border-radius: 11px; color: var(--lime); background: var(--lime-dark); }.organizer-login-note > span { display: grid; gap: 3px; }.organizer-login-note strong { color: var(--ink); font-size: 12px; }.organizer-login-note small { color: var(--muted); font-size: 9px; line-height: 1.4; }
 .tournament-select-page, .organizer-page { min-height: 100vh; padding: 30px clamp(24px, 5vw, 72px) 70px; background: radial-gradient(circle at 82% 10%, rgba(217,255,99,.07), transparent 28%), #0b1310; }
 @media (min-width: 768px) {
