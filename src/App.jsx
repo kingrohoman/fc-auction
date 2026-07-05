@@ -290,6 +290,25 @@ const suggestKickoffDate = () => {
   return localDate.toISOString().slice(0, 16);
 };
 
+const todayInputDate = () => {
+  const date = new Date();
+  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return localDate.toISOString().slice(0, 10);
+};
+
+const isPlayerProfileReady = (player) => Boolean(player?.profileUpdatedAt || player?.profileReady);
+
+const getProfileSetupStatus = (players = [], tournamentCaptains = []) => {
+  const captainIds = new Set(tournamentCaptains.map((captain) => captain.id));
+  const profilePlayers = players.filter((player) => !captainIds.has(player.id));
+  const ready = profilePlayers.filter(isPlayerProfileReady).length;
+  return {
+    total: profilePlayers.length,
+    ready,
+    complete: profilePlayers.length > 0 && ready === profilePlayers.length,
+  };
+};
+
 const createDefaultState = () => ({
   players: seedPlayers,
   captainData: {},
@@ -627,7 +646,7 @@ function TournamentSelector({ user, state, onSelect, onLogout }) {
 function OrganizerDashboard({ state, updateState, onLogout }) {
   const [selectedId, setSelectedId] = useState(state.tournaments[0]?.id);
   const [showCreate, setShowCreate] = useState(false);
-  const [form, setForm] = useState({ name: '', date: '2026-07-03', teamSize: 4, captainCount: 4, budget: 1000 });
+  const [form, setForm] = useState({ name: '', date: todayInputDate(), teamSize: 4, captainCount: 4, budget: 1000 });
   const [csvRows, setCsvRows] = useState([]);
   const [importMessage, setImportMessage] = useState('');
   
@@ -666,7 +685,7 @@ function OrganizerDashboard({ state, updateState, onLogout }) {
       draft.tournamentAuctions[id] = createAuction();
       draft.tournamentCompetitions[id] = createCompetition();
     });
-    setSelectedId(id); setShowCreate(false); setForm({ name: '', date: '2026-07-03', teamSize: 4, captainCount: 4, budget: 1000 });
+    setSelectedId(id); setShowCreate(false); setForm({ name: '', date: todayInputDate(), teamSize: 4, captainCount: 4, budget: 1000 });
   };
 
   const deleteTournament = (id) => {
@@ -849,7 +868,9 @@ function OrganizerDashboard({ state, updateState, onLogout }) {
           style: 'Utility',
           traits: [],
           availability: 'Confirmed',
-          color
+          color,
+          profileReady: false,
+          profileUpdatedAt: null
         };
         draft.players.push(player);
       }
@@ -909,7 +930,9 @@ function OrganizerDashboard({ state, updateState, onLogout }) {
             style: 'Utility',
             traits: [],
             availability: 'Confirmed',
-            color: palette[index % palette.length]
+            color: palette[index % palette.length],
+            profileReady: false,
+            profileUpdatedAt: null
           };
           draft.players.push(player);
         }
@@ -1194,13 +1217,17 @@ function OrganizerDashboard({ state, updateState, onLogout }) {
 }
 
 
-function AppShell({ user, active, setActive, onLogout, onChangeTournament, children, budget, tournament, players, captains: propCaptains }) {
+function AppShell({ user, active, setActive, onLogout, onChangeTournament, children, budget, tournament, players, captains: propCaptains, profileSetup }) {
   const resolvedCaptains = propCaptains || [];
   const captain = resolvedCaptains.find((item) => item.id === user.id);
   const club = getClubInfo(captain);
   const isCaptain = user.role === 'captain';
   const navItems = isCaptain
-    ? [['squad', 'Squad', UsersRound], ['auction', 'Auction', Radio], ['tournament', 'Tournament', Swords], ['club', 'Club settings', Settings]]
+    ? [
+      ['squad', 'Squad', UsersRound],
+      ...(profileSetup?.complete ? [['auction', 'Auction', Radio], ['tournament', 'Tournament', Swords]] : []),
+      ['club', 'Club settings', Settings],
+    ]
     : [['profile', 'My profile', CircleUserRound], ['pool', 'Player pool', UsersRound]];
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -1211,7 +1238,7 @@ function AppShell({ user, active, setActive, onLogout, onChangeTournament, child
         <div className="event-card">
           <span className="event-kicker"><span className="live-dot" /> Live tournament</span>
           <strong>{tournament.name}</strong>
-          <span><Clock3 size={14} /> Auction · {tournament.time || 'TBD'}</span>
+          <span><Clock3 size={14} /> {profileSetup?.complete ? `Auction · ${tournament.time || 'TBD'}` : `Profiles · ${profileSetup?.ready || 0}/${profileSetup?.total || 0}`}</span>
         </div>
         <button className="tournament-switch" onClick={onChangeTournament}><Trophy size={15} /> Change tournament <ArrowRight size={14} /></button>
         <nav>
@@ -1282,28 +1309,30 @@ function FormationPicker({ set, current, onChange }) {
   );
 }
 
-function PlayerCard({ player, rank, onRank, sold, soldClub }) {
+function PlayerCard({ player, rank, onRank, sold, soldClub, profileReady = true, showProfileStatus = false }) {
+  const unavailable = !profileReady && !sold;
   return (
-    <article className={`player-card ${rank ? 'shortlisted' : ''} ${sold ? 'sold' : ''}`}>
+    <article className={`player-card ${rank ? 'shortlisted' : ''} ${sold ? 'sold' : ''} ${unavailable ? 'profile-pending' : ''}`}>
       <div className="player-card-head">
         <Avatar person={player} />
         <div><strong>{player.tag}</strong><span>{player.name}</span></div>
         <span className="rating">{player.rating}</span>
       </div>
       <div className="position-row"><b>{player.primary}</b><span>{player.secondary}</span><span>{player.style}</span></div>
-      <div className="trait-row">{player.traits.map((trait) => <span key={trait}>{trait}</span>)}</div>
+      <div className="trait-row">{(player.traits || []).map((trait) => <span key={trait}>{trait}</span>)}</div>
+      {showProfileStatus && <div className={`profile-status ${profileReady ? 'ready' : 'pending'}`}>{profileReady ? 'Profile updated' : 'Profile pending'}</div>}
       {sold ? (
         <div className="rank-button sold-label"><ClubMark club={soldClub} size="xs" /><span>Drafted to</span><strong>{soldClub?.name || 'Another Team'}</strong></div>
       ) : (
-        <button className={`rank-button ${rank ? 'active' : ''}`} onClick={onRank}>
-          {rank ? <><span>#{rank}</span> Priority pick <X size={15} /></> : <><Target size={16} /> Add to shortlist</>}
+        <button className={`rank-button ${rank ? 'active' : ''}`} onClick={onRank} disabled={unavailable}>
+          {unavailable ? 'Waiting on profile' : rank ? <><span>#{rank}</span> Priority pick <X size={15} /></> : <><Target size={16} /> Shortlist</>}
         </button>
       )}
     </article>
   );
 }
 
-function SquadRoom({ user, state, updateState, goAuction }) {
+function SquadRoom({ user, state, updateState, goAuction, profileSetup }) {
   const captain = state.captains?.find((item) => item.id === user.id);
   const data = state.captainData?.[user.id] || { formation: '4-3-3', shortlist: [], budget: 1000, squad: [], lineup: {} };
   const [search, setSearch] = useState('');
@@ -1311,6 +1340,7 @@ function SquadRoom({ user, state, updateState, goAuction }) {
   const [selectedMemberId, setSelectedMemberId] = useState(null);
   const soldIds = Object.values(state.captainData || {}).flatMap((item) => item?.squad || []);
   const availablePlayerCount = state.players.filter((player) => !soldIds.includes(player.id)).length;
+  const readyAvailablePlayerCount = state.players.filter((player) => !soldIds.includes(player.id) && isPlayerProfileReady(player)).length;
   const getPurchaserClub = (playerId) => {
     const captainId = Object.keys(state.captainData || {}).find(
       (capId) => state.captainData[capId]?.squad?.includes(playerId)
@@ -1394,6 +1424,8 @@ function SquadRoom({ user, state, updateState, goAuction }) {
     draft.captainData[user.id].lineup = lineup;
   });
   const toggleShortlist = (playerId) => updateState((draft) => {
+    const player = draft.players.find((item) => item.id === playerId);
+    if (!isPlayerProfileReady(player)) return;
     if (!draft.captainData[user.id]) {
       draft.captainData[user.id] = { formation: '4-3-3', shortlist: [], budget: 1000, squad: [], lineup: {} };
     }
@@ -1415,13 +1447,13 @@ function SquadRoom({ user, state, updateState, goAuction }) {
   return (
     <>
       <header className="page-header">
-        <div><span className="page-kicker">Captain workspace</span><h1>Build {getClubInfo(captain).name}</h1><p>Set the shape, scout the pool, then bring your shortlist to the auction.</p></div>
+        <div><span className="page-kicker">Captain workspace</span><h1>Build {getClubInfo(captain).name}</h1><p>{profileSetup?.complete ? 'Set the shape, scout the pool, then bring your shortlist to the auction.' : `Player profile setup is open. ${profileSetup?.ready || 0} of ${profileSetup?.total || 0} player profiles are ready.`}</p></div>
         <div style={{ display: 'flex', gap: '10px' }}>
           {pitchFull && !squadConfirmed && (
             <button className="primary confirm-squad-btn" onClick={confirmSquad}><BadgeCheck size={18} /> Confirm squad</button>
           )}
           {squadConfirmed && <span className="status-pill good"><BadgeCheck size={14} /> Squad confirmed</span>}
-          <button className="secondary" onClick={goAuction}><Radio size={18} /> Auction</button>
+          {profileSetup?.complete && <button className="secondary" onClick={goAuction}><Radio size={18} /> Auction</button>}
         </div>
       </header>
       <div className="dashboard-grid">
@@ -1461,17 +1493,17 @@ function SquadRoom({ user, state, updateState, goAuction }) {
               ) : <div className="priority-empty" key={index}><span>{index + 1}</span> Pick a player below</div>;
             })}
           </div>
-          <button className="secondary full" onClick={goAuction} disabled={!data.shortlist.length}><Vote size={17} /> Take shortlist to vote</button>
+          <button className="secondary full" onClick={goAuction} disabled={!data.shortlist.length || !profileSetup?.complete}><Vote size={17} /> {profileSetup?.complete ? 'Take shortlist to vote' : 'Waiting for player profiles'}</button>
         </aside>
       </div>
       <section className="pool-section">
-        <div className="pool-title"><div><span className="section-step">03</span><h2>Scout the player pool</h2><p>{availablePlayerCount} available · sorted by player rating</p></div></div>
+        <div className="pool-title"><div><span className="section-step">03</span><h2>Scout the player pool</h2><p>{readyAvailablePlayerCount}/{availablePlayerCount} profiles ready · pending cards are locked</p></div></div>
         <div className="filter-row">
           <label className="search-box"><Search size={17} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search players or positions" /></label>
           <div className="filter-pills">{['All', 'ST', 'CAM', 'CM', 'CDM', 'CB', 'GK'].map((item) => <button key={item} className={position === item ? 'active' : ''} onClick={() => setPosition(item)}>{item}</button>)}</div>
         </div>
         <div className="player-grid">
-          {filtered.map((player) => <PlayerCard key={player.id} player={player} sold={soldIds.includes(player.id)} soldClub={getPurchaserClub(player.id)} rank={data.shortlist.indexOf(player.id) + 1 || 0} onRank={() => toggleShortlist(player.id)} />)}
+          {filtered.map((player) => <PlayerCard key={player.id} player={player} sold={soldIds.includes(player.id)} soldClub={getPurchaserClub(player.id)} rank={data.shortlist.indexOf(player.id) + 1 || 0} onRank={() => toggleShortlist(player.id)} profileReady={isPlayerProfileReady(player)} showProfileStatus />)}
         </div>
       </section>
     </>
@@ -1930,12 +1962,14 @@ function PlayerProfile({ user, state, updateState, showPool }) {
   const [saved, setSaved] = useState(false);
   const setField = (field, value) => setForm((current) => ({ ...current, [field]: value }));
   const save = () => {
-    updateState((draft) => { draft.players = draft.players.map((item) => item.id === user.id ? form : item); });
+    const updatedProfile = { ...form, profileReady: true, profileUpdatedAt: new Date().toISOString() };
+    updateState((draft) => { draft.players = draft.players.map((item) => item.id === user.id ? updatedProfile : item); });
+    setForm(updatedProfile);
     setSaved(true); setTimeout(() => setSaved(false), 1800);
   };
   return (
     <>
-      <header className="page-header"><div><span className="page-kicker">Player registration</span><h1>Make your case.</h1><p>Captains see this card when they build their shortlist. Keep it honest-ish.</p></div><span className="status-pill good"><BadgeCheck size={14} /> In the player pool</span></header>
+      <header className="page-header"><div><span className="page-kicker">Player profile setup</span><h1>Make your case.</h1><p>Captains can shortlist you after this card is saved.</p></div><span className={`status-pill ${isPlayerProfileReady(form) ? 'good' : ''}`}><BadgeCheck size={14} /> {isPlayerProfileReady(form) ? 'Profile updated' : 'Needs update'}</span></header>
       <div className="profile-layout">
         <section className="panel profile-form">
           <div className="panel-head"><div><span className="section-step">01</span><h2>Your player profile</h2></div><Pencil size={18} /></div>
@@ -1988,6 +2022,8 @@ function PlayerPool({ state }) {
             soldClub={getPurchaserClub(player.id)}
             rank={0}
             onRank={() => {}}
+            profileReady={isPlayerProfileReady(player)}
+            showProfileStatus
           />
         ))}
       </div>
@@ -2156,6 +2192,15 @@ export default function App() {
     return draft;
   });
   const budget = useMemo(() => user?.role === 'captain' && tournamentState ? tournamentState.captainData[user.id]?.budget : 0, [tournamentState, user]);
+  const profileSetup = useMemo(() => (
+    tournamentState ? getProfileSetupStatus(tournamentState.players, tournamentState.captains) : { total: 0, ready: 0, complete: false }
+  ), [tournamentState]);
+
+  useEffect(() => {
+    if (user?.role === 'captain' && !profileSetup.complete && (active === 'auction' || active === 'tournament')) {
+      setActive('squad');
+    }
+  }, [active, profileSetup.complete, user?.role]);
 
   const loginCaptains = useMemo(() => {
     const list = [];
@@ -2178,10 +2223,10 @@ export default function App() {
   else if (user.role === 'organizer') view = <OrganizerDashboard state={state} updateState={updateState} onLogout={logout} />;
   else if (!tournament) view = <TournamentSelector user={user} state={state} onSelect={setSelectedTournamentId} onLogout={logout} />;
   else view = (
-    <AppShell user={user} active={active} setActive={setActive} onLogout={logout} onChangeTournament={() => setSelectedTournamentId(null)} budget={budget} tournament={tournament} players={state.players} captains={tournamentState.captains}>
-      {user.role === 'captain' && active === 'squad' && <SquadRoom user={user} state={tournamentState} updateState={updateTournamentState} goAuction={() => setActive('auction')} />}
-      {user.role === 'captain' && active === 'auction' && <AuctionRoom user={user} state={tournamentState} updateState={updateTournamentState} startingBudget={tournament.budget} goTournament={() => setActive('tournament')} />}
-      {user.role === 'captain' && active === 'tournament' && <TournamentHub user={user} state={tournamentState} updateState={updateTournamentState} />}
+    <AppShell user={user} active={active} setActive={setActive} onLogout={logout} onChangeTournament={() => setSelectedTournamentId(null)} budget={budget} tournament={tournament} players={state.players} captains={tournamentState.captains} profileSetup={profileSetup}>
+      {user.role === 'captain' && active === 'squad' && <SquadRoom user={user} state={tournamentState} updateState={updateTournamentState} goAuction={() => profileSetup.complete && setActive('auction')} profileSetup={profileSetup} />}
+      {user.role === 'captain' && active === 'auction' && profileSetup.complete && <AuctionRoom user={user} state={tournamentState} updateState={updateTournamentState} startingBudget={tournament.budget} goTournament={() => setActive('tournament')} />}
+      {user.role === 'captain' && active === 'tournament' && profileSetup.complete && <TournamentHub user={user} state={tournamentState} updateState={updateTournamentState} />}
       {user.role === 'captain' && active === 'club' && <ClubSettings user={user} state={tournamentState} updateState={updateTournamentState} />}
       {user.role === 'player' && active === 'profile' && <PlayerProfile user={user} state={tournamentState} updateState={updateTournamentState} showPool={() => setActive('pool')} />}
       {user.role === 'player' && active === 'pool' && <PlayerPool state={tournamentState} />}

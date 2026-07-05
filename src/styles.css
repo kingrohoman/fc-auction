@@ -161,6 +161,8 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .player-card.shortlisted { border-color: rgba(217,255,99,.4); box-shadow: inset 0 3px 0 var(--lime); }
 .player-card.sold { opacity: 1; border-color: rgba(217,255,99,.2); background: linear-gradient(180deg, var(--panel), rgba(217,255,99,.025)); }
 .player-card.sold .player-card-head, .player-card.sold .position-row, .player-card.sold .trait-row { opacity: .62; }
+.player-card.profile-pending { filter: grayscale(1); opacity: .48; }
+.player-card.profile-pending:hover { transform: none; border-color: var(--line); }
 .player-card-head { display: flex; align-items: center; gap: 9px; }
 .player-card-head > div { display: grid; flex: 1; min-width: 0; }
 .player-card-head strong { font: 700 12px 'Manrope'; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }.player-card-head div span { color: var(--muted); font-size: 8px; }
@@ -176,6 +178,9 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .rank-button.sold-label span { color: #9daa9f; font-weight: 700; }
 .rank-button.sold-label strong { color: var(--lime); font: 800 11px 'Manrope'; }
 .rank-button.sold-label .club-mark, .rank-button.sold-label .avatar { width: 22px; height: 22px; }
+.profile-status { margin-top: 10px; min-height: 24px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 8px; color: var(--muted); font-size: 8px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; }
+.profile-status.ready { color: var(--lime); border-color: rgba(217,255,99,.22); background: rgba(217,255,99,.06); }
+.profile-status.pending { background: rgba(255,255,255,.025); }
 
 .room-banner { margin: -42px clamp(-64px, -4vw, -28px) 35px; padding: 12px clamp(28px, 4vw, 64px); display: flex; justify-content: space-between; align-items: center; background: var(--lime); color: #0b130e; font-size: 11px; }
 .room-banner span { display: flex; align-items: center; gap: 8px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; }.room-banner strong { font-size: 10px; }
