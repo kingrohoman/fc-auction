@@ -1279,7 +1279,7 @@ function OrganizerDashboard({ state, updateState, onLogout }) {
 }
 
 
-function AppShell({ user, active, setActive, onLogout, onChangeTournament, children, budget, tournament, players, captains: propCaptains, profileSetup }) {
+function AppShell({ user, active, setActive, onLogout, onChangeTournament, children, budget, tournament, players, captains: propCaptains, profileSetup, allPlayersAssigned }) {
   const resolvedCaptains = propCaptains || [];
   const captain = resolvedCaptains.find((item) => item.id === user.id);
   const club = getClubInfo(captain);
@@ -1287,7 +1287,8 @@ function AppShell({ user, active, setActive, onLogout, onChangeTournament, child
   const navItems = isCaptain
     ? [
       ['squad', 'Squad', UsersRound],
-      ...(profileSetup?.complete ? [['auction', 'Auction', Radio], ['tournament', 'Tournament', Swords]] : []),
+      ...(profileSetup?.complete ? [['auction', 'Auction', Radio]] : []),
+      ...(allPlayersAssigned ? [['tournament', 'Tournament', Swords]] : []),
       ['club', 'Club settings', Settings],
     ]
     : [['profile', 'Profile', CircleUserRound], ['pool', 'Players', UsersRound]];
@@ -2314,12 +2315,21 @@ export default function App() {
   const profileSetup = useMemo(() => (
     tournamentState ? getProfileSetupStatus(tournamentState.players, tournamentState.captains) : { total: 0, ready: 0, complete: false }
   ), [tournamentState]);
+  const allPlayersAssigned = useMemo(() => {
+    if (!tournamentState) return false;
+    const soldIds = Object.values(tournamentState.captainData || {}).flatMap((item) => item?.squad || []);
+    return tournamentState.players.length > 0 && tournamentState.players.every((p) => soldIds.includes(p.id));
+  }, [tournamentState]);
 
   useEffect(() => {
-    if (user?.role === 'captain' && !profileSetup.complete && (active === 'auction' || active === 'tournament')) {
-      setActive('squad');
+    if (user?.role === 'captain') {
+      if (!profileSetup.complete && (active === 'auction' || active === 'tournament')) {
+        setActive('squad');
+      } else if (profileSetup.complete && active === 'tournament' && !allPlayersAssigned) {
+        setActive('squad');
+      }
     }
-  }, [active, profileSetup.complete, user?.role]);
+  }, [active, profileSetup.complete, allPlayersAssigned, user?.role]);
 
   const loginCaptains = useMemo(() => {
     const list = [];
@@ -2342,7 +2352,7 @@ export default function App() {
   else if (user.role === 'organizer') view = <OrganizerDashboard state={state} updateState={updateState} onLogout={logout} />;
   else if (!tournament) view = <TournamentSelector user={user} state={state} onSelect={setSelectedTournamentId} onLogout={logout} />;
   else view = (
-    <AppShell user={user} active={active} setActive={setActive} onLogout={logout} onChangeTournament={() => setSelectedTournamentId(null)} budget={budget} tournament={tournament} players={state.players} captains={tournamentState.captains} profileSetup={profileSetup}>
+    <AppShell user={user} active={active} setActive={setActive} onLogout={logout} onChangeTournament={() => setSelectedTournamentId(null)} budget={budget} tournament={tournament} players={state.players} captains={tournamentState.captains} profileSetup={profileSetup} allPlayersAssigned={allPlayersAssigned}>
       {user.role === 'captain' && active === 'squad' && <SquadRoom user={user} state={tournamentState} updateState={updateTournamentState} goAuction={() => profileSetup.complete && setActive('auction')} profileSetup={profileSetup} />}
       {user.role === 'captain' && active === 'auction' && profileSetup.complete && <AuctionRoom user={user} state={tournamentState} updateState={updateTournamentState} startingBudget={tournament.budget} goTournament={() => setActive('tournament')} />}
       {user.role === 'captain' && active === 'tournament' && profileSetup.complete && <TournamentHub user={user} state={tournamentState} updateState={updateTournamentState} />}
