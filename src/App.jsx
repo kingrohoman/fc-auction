@@ -1966,9 +1966,9 @@ function ClubSettings({ user, state, updateState }) {
   );
 }
 
-function PlayerProfile({ user, state, updateState, showPool }) {
-  const player = state.players.find((item) => item.id === user.id);
-  const [form, setForm] = useState(player);
+function PlayerProfile({ user, state, updateState, showPool, player: playerProp }) {
+  const player = playerProp || state.players.find((item) => item.id === user.id);
+  const [form, setForm] = useState(player || { name: '', tag: '', primary: 'CM', secondary: 'CM' });
   const [saved, setSaved] = useState(false);
   const setField = (field, value) => setForm((current) => ({ ...current, [field]: value }));
   const save = () => {
@@ -2295,7 +2295,7 @@ export default function App() {
       {user.role === 'captain' && active === 'auction' && profileSetup.complete && <AuctionRoom user={user} state={tournamentState} updateState={updateTournamentState} startingBudget={tournament.budget} goTournament={() => setActive('tournament')} />}
       {user.role === 'captain' && active === 'tournament' && profileSetup.complete && <TournamentHub user={user} state={tournamentState} updateState={updateTournamentState} />}
       {user.role === 'captain' && active === 'club' && <ClubSettings user={user} state={tournamentState} updateState={updateTournamentState} />}
-      {user.role === 'player' && active === 'profile' && <PlayerProfile user={user} state={tournamentState} updateState={updateTournamentState} showPool={() => setActive('pool')} />}
+      {user.role === 'player' && active === 'profile' && <PlayerProfile user={user} state={tournamentState} updateState={updateState} player={state.players.find((p) => p.id === user.id)} showPool={() => setActive('pool')} />}
       {user.role === 'player' && active === 'pool' && <PlayerPool state={tournamentState} />}
     </AppShell>
   );
