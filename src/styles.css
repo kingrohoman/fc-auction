@@ -13,6 +13,7 @@
   --lime: #d8ff62;
   --lime-dark: #1c2b17;
   --orange: #ff9e5e;
+  --card: #0a120f;
 }
 
 * { box-sizing: border-box; }
@@ -274,6 +275,7 @@ button:disabled { cursor: not-allowed; opacity: .45; }
   --lime: #759d1f;
   --lime-dark: #edf4dd;
   --orange: #c56c2e;
+  --card: #f1f5ef;
 }
 :root[data-theme='light'] body, :root[data-theme='light'] .app-shell, :root[data-theme='light'] .tournament-select-page, :root[data-theme='light'] .organizer-page { background-color: #edf2ec; color: var(--ink); }
 :root[data-theme='light'] .login-page { background: radial-gradient(circle at 15% 80%, #dcebd7 0, transparent 35%), linear-gradient(120deg, #f8faf7, #edf4eb); }
