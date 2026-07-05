@@ -227,7 +227,16 @@ const createCaptainData = (budget = 1000, includeDemoPicks = false) => Object.fr
   formation: '4-3-3', shortlist: includeDemoPicks ? (demoCaptainShortlists[captain.id] || []) : [], budget, squad: [], lineup: { GK: `captain:${captain.id}` }, squadConfirmed: false,
 }]));
 
-const createAuction = () => ({ phase: 'voting', votes: {}, playerId: null, bid: 0, leaderId: null, history: [] });
+const createAuction = () => ({
+  phase: 'scheduled',
+  scheduledTime: null,
+  votes: {},
+  playerId: null,
+  bid: 0,
+  leaderId: null,
+  history: [],
+  order: []
+});
 
 const auctionEligiblePlayers = (players, tournamentCaptains = []) => {
   const captainIds = new Set(tournamentCaptains.map((captain) => captain.id));
@@ -661,6 +670,430 @@ function TournamentSelector({ user, state, onSelect, onLogout }) {
   );
 }
 
+function OrganizerAuctionPanel({ tournament, state, updateState }) {
+  const auction = state.tournamentAuctions[tournament.id] || createAuction();
+  const tCapData = state.tournamentCaptainData[tournament.id] || {};
+  const captains = tournament.captains || [];
+  const soldIds = new Set(Object.values(tCapData).flatMap((item) => item.squad || []));
+  const teamSize = tournament.teamSize || Math.floor(Number(tournament.totalPlayers || 16) / Number(tournament.captainCount)) || 4;
+
+  const [schedTime, setSchedTime] = useState(auction.scheduledTime || '');
+
+  const saveScheduledTime = () => {
+    updateState((draft) => {
+      if (!draft.tournamentAuctions[tournament.id]) {
+        draft.tournamentAuctions[tournament.id] = createAuction();
+      }
+      draft.tournamentAuctions[tournament.id].scheduledTime = schedTime;
+    });
+  };
+
+  const startAuction = () => {
+    updateState((draft) => {
+      if (!draft.tournamentAuctions[tournament.id]) {
+        draft.tournamentAuctions[tournament.id] = createAuction();
+      }
+      draft.tournamentAuctions[tournament.id].phase = 'priority-setup';
+    });
+  };
+
+  const triggerStartRound = () => {
+    updateState((draft) => {
+      const tourId = tournament.id;
+      const tState = draft.tournamentCaptainData[tourId] || {};
+      const targetTour = draft.tournaments.find((t) => t.id === tourId);
+      const caps = targetTour?.captains || [];
+      const sold = new Set(Object.values(tState).flatMap((data) => data.squad || []));
+
+      // Collect all priority picks from active captains
+      const picks = [];
+      caps.forEach((cap) => {
+        const shortlist = tState[cap.id]?.shortlist || [];
+        const activePicks = shortlist.filter((pid) => !sold.has(pid));
+        picks.push(...activePicks);
+      });
+
+      // Count occurrences of each player ID in the shortlists
+      const counts = {};
+      picks.forEach((pid) => {
+        counts[pid] = (counts[pid] || 0) + 1;
+      });
+
+      // Split into conflicts (>1 vote) and uniques (1 vote)
+      const conflicts = [];
+      const uniques = [];
+      Object.entries(counts).forEach(([pid, count]) => {
+        if (count > 1) {
+          conflicts.push(pid);
+        } else {
+          uniques.push(pid);
+        }
+      });
+
+      const shuffle = (arr) => {
+        const newArr = [...arr];
+        for (let i = newArr.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [newArr[i], newArr[j]] = [newArr[j], newArr[i]];
+        }
+        return newArr;
+      };
+
+      const order = [...shuffle(conflicts), ...shuffle(uniques)];
+
+      if (order.length > 0) {
+        draft.tournamentAuctions[tourId].order = order;
+        const nextPlayerId = order.shift();
+        draft.tournamentAuctions[tourId].order = order;
+        draft.tournamentAuctions[tourId].phase = 'bidding';
+        draft.tournamentAuctions[tourId].playerId = nextPlayerId;
+        draft.tournamentAuctions[tourId].bid = 50;
+        draft.tournamentAuctions[tourId].leaderId = null;
+        
+        const pName = draft.players.find((p) => p.id === nextPlayerId)?.tag || 'Player';
+        draft.tournamentAuctions[tourId].history.unshift({
+          type: 'nomination',
+          text: `${pName} nominated automatically at 50 coins`
+        });
+      } else {
+        alert("No priority players selected by any captain!");
+      }
+    });
+  };
+
+  const rivalBid = () => {
+    updateState((draft) => {
+      const tourId = tournament.id;
+      const tAuction = draft.tournamentAuctions[tourId];
+      const tCapData = draft.tournamentCaptainData[tourId];
+      const squadSize = (captainId, data) => 1 + new Set((data.squad || []).filter((pid) => pid !== captainId)).size;
+      
+      const rivalPrice = tAuction.leaderId ? tAuction.bid + 25 : 50;
+      const rivals = tournament.captains.filter((captain) => (
+        captain.id !== tAuction.leaderId
+        && tCapData[captain.id].budget >= rivalPrice
+        && squadSize(captain.id, tCapData[captain.id]) < teamSize
+      ));
+      if (!rivals.length) return;
+      const rival = rivals[Math.floor(Math.random() * rivals.length)];
+      tAuction.bid = rivalPrice;
+      tAuction.leaderId = rival.id;
+      tAuction.history.unshift({ type: 'bid', text: `${rival.handle || rival.tag || ''} bid ${tAuction.bid}` });
+    });
+  };
+
+  const sellPlayer = () => {
+    updateState((draft) => {
+      const tourId = tournament.id;
+      const tAuction = draft.tournamentAuctions[tourId];
+      const tCapData = draft.tournamentCaptainData[tourId];
+      const winner = tAuction.leaderId;
+      if (!winner) return;
+
+      const squadSize = (captainId, data) => 1 + new Set((data.squad || []).filter((pid) => pid !== captainId)).size;
+      if (squadSize(winner, tCapData[winner]) >= teamSize) return;
+
+      const wonPlayer = draft.players.find((item) => item.id === tAuction.playerId);
+      tCapData[winner].budget -= tAuction.bid;
+      tCapData[winner].squad.push(tAuction.playerId);
+      
+      Object.values(tCapData).forEach((data) => {
+        data.shortlist = data.shortlist.filter((id) => id !== tAuction.playerId);
+      });
+
+      const saleEntry = { type: 'sale', text: `${wonPlayer?.tag} signed by ${getClubInfo(tournament.captains.find((c) => c.id === winner)).name}` };
+      
+      const order = tAuction.order || [];
+      const sold = new Set(Object.values(tCapData).flatMap((d) => d.squad || []));
+      const remainingOrder = order.filter((pid) => !sold.has(pid));
+      const unsoldPlayers = draft.players.filter((p) => !sold.has(p.id) && !tournament.captains.some(cap => cap.id === p.id));
+      const openTeams = tournament.captains.filter((cap) => squadSize(cap.id, tCapData[cap.id]) < teamSize);
+
+      if (openTeams.length === 0 || unsoldPlayers.length === 0) {
+        draft.tournamentAuctions[tourId] = {
+          phase: 'complete',
+          votes: {},
+          playerId: null,
+          bid: 0,
+          leaderId: null,
+          history: [{ type: 'complete', text: 'Auction complete · All squads set' }, saleEntry, ...tAuction.history]
+        };
+      } else if (remainingOrder.length > 0) {
+        const nextPlayerId = remainingOrder.shift();
+        draft.tournamentAuctions[tourId] = {
+          ...tAuction,
+          phase: 'bidding',
+          playerId: nextPlayerId,
+          bid: 50,
+          leaderId: null,
+          order: remainingOrder,
+          history: [
+            { type: 'nomination', text: `${draft.players.find((p) => p.id === nextPlayerId)?.tag} nominated at 50 coins` },
+            saleEntry,
+            ...tAuction.history
+          ]
+        };
+      } else {
+        draft.tournamentAuctions[tourId] = {
+          ...tAuction,
+          phase: 'priority-setup',
+          playerId: null,
+          bid: 0,
+          leaderId: null,
+          order: [],
+          history: [
+            { type: 'complete', text: 'Round completed. Waiting for new priority selections.' },
+            saleEntry,
+            ...tAuction.history
+          ]
+        };
+      }
+    });
+  };
+
+  const passPlayer = () => {
+    updateState((draft) => {
+      const tourId = tournament.id;
+      const tAuction = draft.tournamentAuctions[tourId];
+      const tCapData = draft.tournamentCaptainData[tourId];
+      const passed = draft.players.find((item) => item.id === tAuction.playerId);
+      const passEntry = { type: 'pass', text: `${passed?.tag || 'Player'} passed · no sale, back in the pool` };
+
+      const order = tAuction.order || [];
+      const sold = new Set(Object.values(tCapData).flatMap((d) => d.squad || []));
+      const remainingOrder = order.filter((pid) => !sold.has(pid));
+      const squadSize = (captainId, data) => 1 + new Set((data.squad || []).filter((pid) => pid !== captainId)).size;
+      const unsoldPlayers = draft.players.filter((p) => !sold.has(p.id) && !tournament.captains.some(cap => cap.id === p.id));
+      const openTeams = tournament.captains.filter((cap) => squadSize(cap.id, tCapData[cap.id]) < teamSize);
+
+      if (openTeams.length === 0 || unsoldPlayers.length === 0) {
+        draft.tournamentAuctions[tourId] = {
+          phase: 'complete',
+          votes: {},
+          playerId: null,
+          bid: 0,
+          leaderId: null,
+          history: [{ type: 'complete', text: 'Auction complete · All squads set' }, passEntry, ...tAuction.history]
+        };
+      } else if (remainingOrder.length > 0) {
+        const nextPlayerId = remainingOrder.shift();
+        draft.tournamentAuctions[tourId] = {
+          ...tAuction,
+          phase: 'bidding',
+          playerId: nextPlayerId,
+          bid: 50,
+          leaderId: null,
+          order: remainingOrder,
+          history: [
+            { type: 'nomination', text: `${draft.players.find((p) => p.id === nextPlayerId)?.tag} nominated at 50 coins` },
+            passEntry,
+            ...tAuction.history
+          ]
+        };
+      } else {
+        draft.tournamentAuctions[tourId] = {
+          ...tAuction,
+          phase: 'priority-setup',
+          playerId: null,
+          bid: 0,
+          leaderId: null,
+          order: [],
+          history: [
+            { type: 'complete', text: 'Round completed. Waiting for new priority selections.' },
+            passEntry,
+            ...tAuction.history
+          ]
+        };
+      }
+    });
+  };
+
+  const resetAuction = () => {
+    if (!window.confirm('Reset the entire auction? This will clear all bids, sales, squads, and auction history.')) return;
+    updateState((draft) => {
+      draft.tournamentAuctions[tournament.id] = createAuction();
+      const eligibleIds = new Set(draft.players.map((p) => p.id));
+      const targetTour = draft.tournaments.find((t) => t.id === tournament.id);
+      const tCaptains = targetTour?.captains || [];
+      tCaptains.forEach((captain) => {
+        const data = draft.tournamentCaptainData[tournament.id]?.[captain.id];
+        if (!data) return;
+        data.budget = Number(tournament.budget || 1000);
+        data.squad = [];
+        data.shortlist = (data.shortlist || []).filter((pid) => eligibleIds.has(pid));
+        data.lineup = Object.fromEntries(Object.entries(data.lineup || {}).filter(([, memberId]) => (
+          memberId === captain.id || memberId === `captain:${captain.id}`
+        )));
+      });
+    });
+  };
+
+  const captainsStatus = captains.map((cap) => {
+    const shortlist = tCapData[cap.id]?.shortlist || [];
+    const activeShortlistCount = shortlist.filter((pid) => !soldIds.has(pid)).length;
+    return {
+      id: cap.id,
+      name: cap.name,
+      handle: cap.handle || cap.tag,
+      picksCount: activeShortlistCount,
+      ready: activeShortlistCount === 3
+    };
+  });
+  const canStartRound = captainsStatus.some((c) => c.picksCount > 0);
+
+  if (auction.phase === 'scheduled') {
+    return (
+      <div className="csv-import-panel" style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '20px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+          <div>
+            <h3>Schedule Live Auction</h3>
+            <p style={{ color: 'var(--muted)', fontSize: '11px', margin: '4px 0 16px' }}>Set the target date and time. This will display for all captains and players.</p>
+          </div>
+          <label style={{ display: 'grid', gap: '7px' }}>
+            <span style={{ fontSize: '10px', color: 'var(--muted)', fontWeight: 600 }}>Auction Date & Time</span>
+            <input 
+              type="datetime-local" 
+              value={schedTime} 
+              onChange={(e) => setSchedTime(e.target.value)} 
+              style={{ width: '100%', padding: '12px', background: 'var(--card)', border: '1px solid var(--line)', color: 'var(--ink)', borderRadius: '8px', fontSize: '11px' }}
+            />
+          </label>
+          <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+            <button className="primary" onClick={saveScheduledTime} style={{ padding: '10px 20px', fontSize: '11px' }}><BadgeCheck size={16} /> Save Schedule</button>
+            <button className="primary" onClick={startAuction} disabled={!schedTime} style={{ padding: '10px 20px', fontSize: '11px' }}><Play size={16} /> Start Auction</button>
+          </div>
+        </div>
+        <div style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid var(--line)', padding: '20px', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <h4>Status Check</h4>
+          <p style={{ fontSize: '10px', color: 'var(--muted)' }}>Captains will not be able to enter the bidding room until the auction is officially started.</p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px' }}>
+            <Clock3 size={15} style={{ color: 'var(--lime)' }} />
+            <span>Scheduled: <strong>{auction.scheduledTime ? new Date(auction.scheduledTime).toLocaleString() : 'TBD'}</strong></span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (auction.phase === 'priority-setup') {
+    return (
+      <div className="csv-import-panel" style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '20px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+          <div>
+            <h3>Nomination Round Setup</h3>
+            <p style={{ color: 'var(--muted)', fontSize: '11px', margin: '4px 0 16px' }}>Captains are currently picking their 3 priority players. Once picks are ready, click "Start Round".</p>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', background: 'var(--card)', border: '1px solid var(--line)', padding: '16px', borderRadius: '10px' }}>
+            <h4 style={{ margin: '0 0 8px', fontSize: '11px' }}>Captain Checklist</h4>
+            {captainsStatus.map((c) => (
+              <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', padding: '6px 0', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+                <span><strong>{c.handle}</strong> ({c.name})</span>
+                <span style={{ color: c.ready ? 'var(--lime)' : '#ffb96e', fontWeight: 'bold' }}>
+                  {c.ready ? '🟢 Ready (3/3)' : `🟡 Choosing (${c.picksCount}/3)`}
+                </span>
+              </div>
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+            <button className="primary" onClick={triggerStartRound} disabled={!canStartRound} style={{ padding: '10px 20px', fontSize: '11px' }}><Play size={16} /> Start Round</button>
+            <button className="ghost btn-danger btn-xs" onClick={resetAuction} style={{ marginLeft: 'auto' }}><RotateCcw size={13} /> Reset auction</button>
+          </div>
+        </div>
+        <div style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid var(--line)', padding: '20px', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <h4>Lot Queuing Rules</h4>
+          <p style={{ fontSize: '9px', color: 'var(--muted)', lineHeight: '1.4' }}>
+            1. <strong>Conflicts first:</strong> Players shortlisted by more than 1 captain are pooled and shuffled to be auctioned first.<br/><br/>
+            2. <strong>Uniques second:</strong> Players shortlisted by exactly 1 captain are shuffled and auctioned after conflicts.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (auction.phase === 'bidding') {
+    const activePlayer = state.players.find((p) => p.id === auction.playerId);
+    const leader = captains.find((c) => c.id === auction.leaderId);
+    return (
+      <div className="csv-import-panel" style={{ padding: '20px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid var(--line)', paddingBottom: '12px' }}>
+          <div>
+            <h3>Live Bidding Console (Auctioneer View)</h3>
+            <p style={{ color: 'var(--muted)', fontSize: '11px' }}>Manage the active bidding lot, trigger rival bids, and award/pass players.</p>
+          </div>
+          <button className="ghost btn-danger btn-xs" onClick={resetAuction}><RotateCcw size={13} /> Reset auction</button>
+        </div>
+        <div className="auction-stage" style={{ background: 'transparent', padding: 0 }}>
+          <div className="auction-layout" style={{ margin: 0 }}>
+            {activePlayer && (
+              <section className="lot-card">
+                <div className="lot-stripe" />
+                <span className="lot-label">Now on the block</span>
+                <Avatar person={activePlayer} size="xl" />
+                <h1>{activePlayer.tag}</h1><p>{activePlayer.name}</p>
+                <div className="lot-stats"><span><b>{activePlayer.rating}</b> OVR</span><span><b>{activePlayer.primary}</b> Position</span></div>
+              </section>
+            )}
+            <section className="bid-console" style={{ background: 'var(--panel)', padding: '24px', borderRadius: '14px' }}>
+              <span className="page-kicker">Current bid</span>
+              <div className="big-bid" style={{ fontSize: '36px' }}><Coins size={33} /> {auction.bid}</div>
+              <div className={`leading-bid ${leader ? 'has-leader' : ''}`}>
+                {leader ? <><ClubMark club={getClubInfo(leader)} size="xs" /><span><small>Leading bid</small><strong>{getClubInfo(leader).name}</strong></span></> : <><Clock3 size={19} /><span><small>Opening price</small><strong>Waiting for first bid</strong></span></>}
+              </div>
+              
+              <div className="demo-controls" style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '20px', border: 0, padding: 0 }}>
+                <button className="primary" onClick={rivalBid} style={{ background: 'var(--lime-dark)', color: 'var(--lime)', border: '1px solid rgba(217,255,99,0.2)' }}><Sparkles size={16} /> Simulate rival +25</button>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                  <button className="primary" onClick={sellPlayer} disabled={!leader}>Close &amp; award player</button>
+                  <button className="secondary" onClick={passPlayer}>Pass · no sale</button>
+                </div>
+              </div>
+            </section>
+            <aside className="standings-card">
+              <h2>Captain budgets</h2>
+              {captains.map((cap) => {
+                const cData = tCapData[cap.id] || { squad: [], budget: 0 };
+                const club = getClubInfo(cap);
+                const filled = 1 + new Set((cData.squad || []).filter((pid) => pid !== cap.id)).size;
+                const isFull = filled >= teamSize;
+                return (
+                  <div className={auction.leaderId === cap.id ? 'leading' : ''} key={cap.id}>
+                    <ClubMark club={club} size="xs" />
+                    <span>
+                      <strong>{club.name}</strong>
+                      {isFull
+                        ? <small className="squad-dots-complete">COMPLETE</small>
+                        : <span className="squad-dots">{Array.from({ length: teamSize }, (_, i) => <span key={i} className={i < filled ? 'squad-dot filled' : 'squad-dot'} />)}</span>
+                      }
+                    </span>
+                    <b>{money(cData.budget)}</b>
+                  </div>
+                );
+              })}
+              <div className="history">
+                <h3>Room activity</h3>
+                {auction.history.slice(0, 4).map((item, idx) => <p key={idx}><span />{item.text}</p>)}
+              </div>
+            </aside>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (auction.phase === 'complete') {
+    return (
+      <div className="csv-import-panel" style={{ padding: '20px', textAlign: 'center' }}>
+        <Crown size={48} style={{ color: 'var(--lime)', marginBottom: '16px' }} />
+        <h3>Auction Complete</h3>
+        <p style={{ color: 'var(--muted)', margin: '8px 0 20px' }}>All squads have been finalized. The captains can now go to the Tournament Hub to confirm their line-ups.</p>
+        <button className="secondary" onClick={resetAuction}><RotateCcw size={16} /> Reset Auction</button>
+      </div>
+    );
+  }
+
+  return null;
+}
+
 function OrganizerDashboard({ state, updateState, onLogout }) {
   const [selectedId, setSelectedId] = useState(state.tournaments[0]?.id);
   const [showCreate, setShowCreate] = useState(false);
@@ -675,6 +1108,10 @@ function OrganizerDashboard({ state, updateState, onLogout }) {
   const [showAddPlayer, setShowAddPlayer] = useState(false);
   const [manualPlayer, setManualPlayer] = useState({ name: '', primary: 'CM', secondary: 'CM' });
   const [orgTab, setOrgTab] = useState('roster');
+
+  useEffect(() => {
+    setOrgTab('roster');
+  }, [selectedId]);
 
   const tournament = state.tournaments.find((item) => item.id === selectedId) || state.tournaments[0];
   const playerIds = state.tournamentPlayerIds[tournament?.id] || [];
@@ -1137,6 +1574,9 @@ function OrganizerDashboard({ state, updateState, onLogout }) {
                 {tournament.status === 'draft' && (
                   <button className={orgTab === 'csv' ? 'active' : ''} onClick={() => setOrgTab('csv')}><FileSpreadsheet size={16} /> CSV Import</button>
                 )}
+                {tournament.status === 'active' && (
+                  <button className={orgTab === 'auction' ? 'active' : ''} onClick={() => setOrgTab('auction')}><Radio size={16} /> Live Auction</button>
+                )}
               </div>
               {orgTab === 'csv' && tournament.status === 'draft' ? (
                 <div className="csv-import-panel">
@@ -1155,6 +1595,8 @@ function OrganizerDashboard({ state, updateState, onLogout }) {
                   })}</div></div><button className="primary" onClick={importRoster}><Upload size={17} /> Import {csvRows.length} players</button></>}
                   {importMessage && <div className="import-success"><CheckCircle2 size={17} /> {importMessage}</div>}
                 </div>
+              ) : orgTab === 'auction' && tournament.status === 'active' ? (
+                <OrganizerAuctionPanel tournament={tournament} state={state} updateState={updateState} />
               ) : (
                 <div className="roster-management-panel">
                   <div className="roster-header">
@@ -1279,7 +1721,7 @@ function OrganizerDashboard({ state, updateState, onLogout }) {
 }
 
 
-function AppShell({ user, active, setActive, onLogout, onChangeTournament, children, budget, tournament, players, captains: propCaptains, profileSetup, allPlayersAssigned }) {
+function AppShell({ user, active, setActive, onLogout, onChangeTournament, children, budget, tournament, players, captains: propCaptains, profileSetup, allPlayersAssigned, auction }) {
   const resolvedCaptains = propCaptains || [];
   const captain = resolvedCaptains.find((item) => item.id === user.id);
   const club = getClubInfo(captain);
@@ -1324,7 +1766,17 @@ function AppShell({ user, active, setActive, onLogout, onChangeTournament, child
       </aside>
       <div className="mobile-top"><button className="icon-button" onClick={() => setMobileOpen(true)}><Menu size={20} /></button><Brand /></div>
       {mobileOpen && <div className="sidebar-overlay" onClick={() => setMobileOpen(false)} />}
-      <section className="content">{children}</section>
+      <section className="content">
+        {user.role === 'player' && auction?.phase === 'scheduled' && (
+          <div className="auction-scheduled-banner" style={{ background: 'rgba(217,255,99,0.1)', border: '1px solid rgba(217,255,99,0.2)', padding: '12px 18px', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
+            <CalendarDays size={18} style={{ color: 'var(--lime)' }} />
+            <span style={{ fontSize: '11px', color: 'var(--ink)' }}>
+              <strong>Live Auction Scheduled:</strong> {auction.scheduledTime ? new Date(auction.scheduledTime).toLocaleString() : 'Date & Time TBD'}
+            </span>
+          </div>
+        )}
+        {children}
+      </section>
     </div>
   );
 }
@@ -1725,7 +2177,6 @@ function BiddingRoom({ user, state, updateState, onReset }) {
             <span>Place bid</span><strong><Coins size={22} /> {nextBid}</strong>
           </button>
           <p className="bid-helper">You have <b>{money(state.captainData[user.id].budget)}</b> coins available.{squadFull && <><br /><b>Your squad is full.</b></>}</p>
-          <div className="demo-controls"><span>Prototype controls</span><button onClick={rivalBid}>Simulate rival +25</button><button onClick={sell} disabled={!leader}>Close &amp; award player</button><button onClick={passLot}>Pass · no sale</button></div>
         </section>
         <aside className="standings-card">
           <h2>Captain budgets</h2>
@@ -1811,13 +2262,60 @@ function AuctionRoom({ startingBudget, goTournament, ...props }) {
     });
   };
 
+  const auction = props.state.auction;
+
+  if (auction.phase === 'scheduled') {
+    return (
+      <div className="auction-scheduled-view" style={{ textAlign: 'center', padding: '60px 20px' }}>
+        <CalendarDays size={48} style={{ color: 'var(--lime)', marginBottom: '16px', display: 'inline-block' }} />
+        <h2>Live Auction Scheduled</h2>
+        <p style={{ color: 'var(--muted)', margin: '8px 0 24px' }}>
+          The live auction has been scheduled by the organizer.
+        </p>
+        <div className="scheduled-time-box" style={{ background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '12px', padding: '24px', display: 'inline-block' }}>
+          <Clock3 size={20} style={{ verticalAlign: 'middle', marginRight: '8px', color: 'var(--lime)', display: 'inline-block' }} />
+          <span style={{ fontSize: '16px', fontWeight: 'bold' }}>
+            {auction.scheduledTime ? new Date(auction.scheduledTime).toLocaleString() : 'Date & Time TBD'}
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  if (auction.phase === 'priority-setup') {
+    return (
+      <div className="auction-waiting-view" style={{ textAlign: 'center', padding: '60px 20px' }}>
+        <Clock3 size={48} style={{ color: 'var(--lime)', marginBottom: '16px', display: 'inline-block' }} />
+        <h2>Scouting & Priority Board Selection</h2>
+        <p style={{ color: 'var(--muted)', margin: '8px 0 24px', maxWidth: '420px', marginLeft: 'auto', marginRight: 'auto', fontSize: '12px', lineHeight: '1.5' }}>
+          The Auctioneer has started the tournament draft setup! Please head over to the <strong>Squad</strong> room to pick your 3 priority board players. The Auctioneer will start the round once captains are ready.
+        </p>
+        <div className="status-container" style={{ background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '12px', padding: '20px 30px', display: 'inline-block', width: '280px' }}>
+          <h4 style={{ margin: '0 0 12px', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Captain Readiness</h4>
+          <div style={{ display: 'grid', gap: '8px', textAlign: 'left' }}>
+            {props.state.captains.map((cap) => {
+              const picks = props.state.captainData[cap.id]?.shortlist || [];
+              const isReady = picks.length === 3;
+              return (
+                <div key={cap.id} style={{ display: 'flex', gap: '16px', justifyContent: 'space-between', fontSize: '11px' }}>
+                  <span><strong>{cap.handle || cap.tag}</strong></span>
+                  <span style={{ color: isReady ? 'var(--lime)' : '#ffb96e', fontWeight: 'bold' }}>
+                    {isReady ? 'Ready' : `Choosing (${picks.length}/3)`}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
-      {props.state.auction.phase === 'complete'
+      {auction.phase === 'complete'
         ? <AuctionCompleteScreen state={props.state} goTournament={goTournament} />
-        : props.state.auction.phase === 'voting'
-          ? <VotingRoom {...props} onReset={resetAuction} />
-          : <BiddingRoom {...props} onReset={resetAuction} />}
+        : <BiddingRoom {...props} onReset={resetAuction} />}
     </>
   );
 }
@@ -2352,7 +2850,7 @@ export default function App() {
   else if (user.role === 'organizer') view = <OrganizerDashboard state={state} updateState={updateState} onLogout={logout} />;
   else if (!tournament) view = <TournamentSelector user={user} state={state} onSelect={setSelectedTournamentId} onLogout={logout} />;
   else view = (
-    <AppShell user={user} active={active} setActive={setActive} onLogout={logout} onChangeTournament={() => setSelectedTournamentId(null)} budget={budget} tournament={tournament} players={state.players} captains={tournamentState.captains} profileSetup={profileSetup} allPlayersAssigned={allPlayersAssigned}>
+    <AppShell user={user} active={active} setActive={setActive} onLogout={logout} onChangeTournament={() => setSelectedTournamentId(null)} budget={budget} tournament={tournament} players={state.players} captains={tournamentState.captains} profileSetup={profileSetup} allPlayersAssigned={allPlayersAssigned} auction={tournamentState?.auction}>
       {user.role === 'captain' && active === 'squad' && <SquadRoom user={user} state={tournamentState} updateState={updateTournamentState} goAuction={() => profileSetup.complete && setActive('auction')} profileSetup={profileSetup} />}
       {user.role === 'captain' && active === 'auction' && profileSetup.complete && <AuctionRoom user={user} state={tournamentState} updateState={updateTournamentState} startingBudget={tournament.budget} goTournament={() => setActive('tournament')} />}
       {user.role === 'captain' && active === 'tournament' && profileSetup.complete && <TournamentHub user={user} state={tournamentState} updateState={updateTournamentState} />}
