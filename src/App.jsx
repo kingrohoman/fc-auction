@@ -1664,6 +1664,72 @@ function OrganizerDashboard({ state, updateState, onLogout }) {
     document.body.removeChild(link);
   };
 
+  const downloadBackup = () => {
+    try {
+      const dataStr = JSON.stringify(state, null, 2);
+      const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
+      const dateStr = new Date().toISOString().slice(0, 10);
+      const exportFileDefaultName = `fc_auction_backup_${dateStr}.json`;
+      
+      const linkElement = document.createElement('a');
+      linkElement.setAttribute('href', dataUri);
+      linkElement.setAttribute('download', exportFileDefaultName);
+      linkElement.click();
+    } catch (err) {
+      alert("Failed to generate backup file: " + err.message);
+    }
+  };
+
+  const uploadBackup = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const parsed = JSON.parse(e.target.result);
+        
+        if (!parsed.tournaments || !Array.isArray(parsed.tournaments)) {
+          throw new Error("Invalid backup: 'tournaments' array is missing.");
+        }
+        if (!parsed.players || !Array.isArray(parsed.players)) {
+          throw new Error("Invalid backup: 'players' array is missing.");
+        }
+        if (!parsed.tournamentPlayerIds || typeof parsed.tournamentPlayerIds !== 'object') {
+          throw new Error("Invalid backup: 'tournamentPlayerIds' map is missing.");
+        }
+        if (!parsed.tournamentCaptainData || typeof parsed.tournamentCaptainData !== 'object') {
+          throw new Error("Invalid backup: 'tournamentCaptainData' map is missing.");
+        }
+        if (!parsed.tournamentAuctions || typeof parsed.tournamentAuctions !== 'object') {
+          throw new Error("Invalid backup: 'tournamentAuctions' map is missing.");
+        }
+
+        if (!window.confirm("Warning: Uploading this backup will completely replace your current tournaments, rosters, draft states, and match stats. Do you want to continue?")) {
+          return;
+        }
+
+        updateState((draft) => {
+          draft.players = parsed.players;
+          draft.tournaments = parsed.tournaments;
+          draft.tournamentPlayerIds = parsed.tournamentPlayerIds;
+          draft.tournamentCaptainData = parsed.tournamentCaptainData;
+          draft.tournamentAuctions = parsed.tournamentAuctions;
+          draft.tournamentCompetitions = parsed.tournamentCompetitions || {};
+        });
+
+        alert("Backup restored successfully!");
+        if (parsed.tournaments.length > 0) {
+          setSelectedId(parsed.tournaments[0].id);
+        }
+      } catch (err) {
+        alert("Failed to restore backup: " + err.message);
+      }
+    };
+    reader.readAsText(file);
+    event.target.value = "";
+  };
+
   return (
     <main className="organizer-page">
       <header className="standalone-header"><Brand /><div><span className="organizer-badge"><Shield size={14} /> Organizer</span><button className="ghost" onClick={onLogout}><LogOut size={16} /> Sign out</button></div></header>
@@ -1695,6 +1761,14 @@ function OrganizerDashboard({ state, updateState, onLogout }) {
                 <ArrowRight size={15} />
               </button>
             ))}
+          </div>
+          <div className="backup-restore-panel" style={{ borderTop: '1px solid var(--line)', paddingTop: '16px', marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <span className="page-kicker" style={{ fontSize: '9px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--muted)', display: 'block', marginBottom: '4px' }}>Maintenance &amp; Backup</span>
+            <button className="secondary full btn-xs" onClick={downloadBackup} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontSize: '11px', padding: '8px' }}><Download size={14} /> Download Backup (JSON)</button>
+            <label className="secondary button full btn-xs" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontSize: '11px', padding: '8px', cursor: 'pointer', textAlign: 'center', border: '1px dashed var(--line)', background: 'var(--card)' }}>
+              <Upload size={14} /> Upload Backup (JSON)
+              <input type="file" accept=".json" onChange={uploadBackup} style={{ display: 'none' }} />
+            </label>
           </div>
         </aside>
         {tournament ? (
