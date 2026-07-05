@@ -45,12 +45,10 @@ const CLOUD_SYNC_LABEL = hasSupabaseConfig ? 'Live sync on' : 'Local mode';
 
 const POSITIONS = ['GK', 'CB', 'LB', 'RB', 'CDM', 'CM', 'CAM', 'LM', 'RM', 'LW', 'RW', 'ST'];
 
-const captains = [
-  { id: 'cap-tariq', name: 'Tariq', handle: 'Rohoman', team: 'North Stars', color: '#d9ff63', initials: 'TR' },
-  { id: 'cap-farhan', name: 'Farhan', handle: 'F7', team: 'Night Shift', color: '#66e3ff', initials: 'FA' },
-  { id: 'cap-imran', name: 'Imran', handle: 'El Jefe', team: 'Redline', color: '#ff766e', initials: 'IM' },
-  { id: 'cap-sami', name: 'Sami', handle: 'S4MI', team: 'Atlas FC', color: '#b69cff', initials: 'SA' },
-];
+const captains = [];
+
+const legacyCaptainIds = new Set(['cap-tariq', 'cap-farhan', 'cap-imran', 'cap-sami']);
+const legacyTournamentIds = new Set(['t-friday-night']);
 
 const legacySeedPlayerIds = new Set([
   'p-rafi',
@@ -221,15 +219,9 @@ const getFormationSet = (teamSize) => {
   return { Balanced: generateFormation(size) };
 };
 
-const seedTournaments = [
-  { id: 't-friday-night', name: 'Friday Night FC', date: '2026-06-26', time: '20:30', status: 'active', format: '11v11', captainCount: 4, budget: 1000, captains: captains.map((captain) => ({ ...captain, club: { name: captain.team, logo: null } })) },
-];
+const seedTournaments = [];
 
-const demoCaptainShortlists = {
-  'cap-farhan': ['p-adnan', 'p-ayaan', 'p-fahim'],
-  'cap-imran': ['p-nabil', 'p-hamza', 'p-zayed'],
-  'cap-sami': ['p-adnan', 'p-shah', 'p-rayan'],
-};
+const demoCaptainShortlists = {};
 
 const createCaptainData = (budget = 1000, includeDemoPicks = false) => Object.fromEntries(captains.map((captain) => [captain.id, {
   formation: '4-3-3', shortlist: includeDemoPicks ? (demoCaptainShortlists[captain.id] || []) : [], budget, squad: [], lineup: { GK: `captain:${captain.id}` }, squadConfirmed: false,
@@ -300,53 +292,71 @@ const suggestKickoffDate = () => {
 
 const createDefaultState = () => ({
   players: seedPlayers,
-  captainData: createCaptainData(1000, false),
+  captainData: {},
   auction: createAuction(),
   tournaments: seedTournaments,
-  tournamentPlayerIds: { 't-friday-night': seedPlayers.map((player) => player.id) },
-  tournamentCaptainData: { 't-friday-night': createCaptainData(1000, false) },
-  tournamentAuctions: { 't-friday-night': createAuction() },
-  tournamentCompetitions: { 't-friday-night': createCompetition() },
+  tournamentPlayerIds: {},
+  tournamentCaptainData: {},
+  tournamentAuctions: {},
+  tournamentCompetitions: {},
   demoPicksVersion: 1,
 });
 
+const isLegacyRef = (value) => {
+  const id = String(value || '').replace(/^captain:/, '');
+  return legacySeedPlayerIds.has(id) || legacyCaptainIds.has(id);
+};
+
 const removeLegacySeedPlayerRefs = (value) => {
-  if (Array.isArray(value)) return value.filter((item) => !legacySeedPlayerIds.has(item));
+  if (Array.isArray(value)) return value.filter((item) => !isLegacyRef(item));
   if (value && typeof value === 'object') {
-    return Object.fromEntries(Object.entries(value).filter(([, item]) => !legacySeedPlayerIds.has(item)));
+    return Object.fromEntries(Object.entries(value).filter(([, item]) => !isLegacyRef(item)));
   }
   return value;
 };
 
-const sanitizeCaptainData = (captainData = {}) => Object.fromEntries(Object.entries(captainData).map(([captainId, data]) => [
-  captainId,
-  {
-    ...data,
-    shortlist: removeLegacySeedPlayerRefs(data?.shortlist || []),
-    squad: removeLegacySeedPlayerRefs(data?.squad || []),
-    lineup: removeLegacySeedPlayerRefs(data?.lineup || {}),
-  },
-]));
+const sanitizeCaptainData = (captainData = {}) => Object.fromEntries(Object.entries(captainData)
+  .filter(([captainId]) => !legacyCaptainIds.has(captainId))
+  .map(([captainId, data]) => [
+    captainId,
+    {
+      ...data,
+      shortlist: removeLegacySeedPlayerRefs(data?.shortlist || []),
+      squad: removeLegacySeedPlayerRefs(data?.squad || []),
+      lineup: removeLegacySeedPlayerRefs(data?.lineup || {}),
+    },
+  ]));
+
+const stripLegacyTournamentKeys = (map = {}) => Object.fromEntries(
+  Object.entries(map).filter(([tournamentId]) => !legacyTournamentIds.has(tournamentId))
+);
 
 const sanitizeState = (state) => {
   const cleaned = {
     ...state,
-    players: (state.players || []).filter((player) => !legacySeedPlayerIds.has(player.id)),
+    players: (state.players || []).filter((player) => !legacySeedPlayerIds.has(player.id) && !legacyCaptainIds.has(player.id)),
     captainData: sanitizeCaptainData(state.captainData),
-    tournamentPlayerIds: Object.fromEntries(Object.entries(state.tournamentPlayerIds || {}).map(([tournamentId, playerIds]) => [
+    tournaments: (state.tournaments || [])
+      .filter((tournament) => !legacyTournamentIds.has(tournament.id))
+      .map((tournament) => ({
+        ...tournament,
+        captains: (tournament.captains || []).filter((captain) => !legacyCaptainIds.has(captain.id)),
+      })),
+    tournamentPlayerIds: Object.fromEntries(Object.entries(stripLegacyTournamentKeys(state.tournamentPlayerIds || {})).map(([tournamentId, playerIds]) => [
       tournamentId,
       removeLegacySeedPlayerRefs(playerIds || []),
     ])),
-    tournamentCaptainData: Object.fromEntries(Object.entries(state.tournamentCaptainData || {}).map(([tournamentId, captainData]) => [
+    tournamentCaptainData: Object.fromEntries(Object.entries(stripLegacyTournamentKeys(state.tournamentCaptainData || {})).map(([tournamentId, captainData]) => [
       tournamentId,
       sanitizeCaptainData(captainData),
     ])),
   };
 
-  cleaned.tournamentAuctions = Object.fromEntries(Object.entries(state.tournamentAuctions || {}).map(([tournamentId, auction]) => [
+  cleaned.tournamentAuctions = Object.fromEntries(Object.entries(stripLegacyTournamentKeys(state.tournamentAuctions || {})).map(([tournamentId, auction]) => [
     tournamentId,
-    legacySeedPlayerIds.has(auction?.playerId) ? createAuction() : auction,
+    isLegacyRef(auction?.playerId) ? createAuction() : auction,
   ]));
+  cleaned.tournamentCompetitions = stripLegacyTournamentKeys(state.tournamentCompetitions || {});
 
   return cleaned;
 };
@@ -354,82 +364,44 @@ const sanitizeState = (state) => {
 function loadState() {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    if (!saved?.players || !saved?.captainData || !saved?.auction) return createDefaultState();
-    const base = createDefaultState();
-    const cleanedSaved = sanitizeState(saved);
-    const normalized = { ...base, ...cleanedSaved, captainData: { ...base.captainData } };
-    const needsDemoPicks = false;
-    const soldPlayerIds = new Set(Object.values(cleanedSaved.captainData).flatMap((data) => data.squad || []));
-    captains.forEach((captain) => {
-      const prior = cleanedSaved.captainData[captain.id] || {};
-      const formation = formations[prior.formation] ? prior.formation : '4-3-3';
-      const activeSpots = new Set(formations[formation].map((spot) => spot.id));
-      const lineup = Object.fromEntries(Object.entries(prior.lineup || {}).filter(([spotId]) => activeSpots.has(spotId)));
-      const captainMemberId = `captain:${captain.id}`;
-      if (!Object.values(lineup).includes(captainMemberId)) lineup.GK = captainMemberId;
-      const seededShortlist = demoCaptainShortlists[captain.id]?.filter((playerId) => !soldPlayerIds.has(playerId)) || [];
-      const shortlist = needsDemoPicks && captain.id !== 'cap-tariq' && !prior.shortlist?.length ? seededShortlist : (prior.shortlist || base.captainData[captain.id].shortlist);
-      normalized.captainData[captain.id] = { ...base.captainData[captain.id], ...prior, formation, lineup, shortlist };
-    });
-    normalized.demoPicksVersion = 1;
-    normalized.tournaments = cleanedSaved.tournaments?.length ? cleanedSaved.tournaments : seedTournaments;
-    normalized.tournamentPlayerIds = cleanedSaved.tournamentPlayerIds || { 't-friday-night': normalized.players.map((player) => player.id) };
-    normalized.tournamentCaptainData = cleanedSaved.tournamentCaptainData || { 't-friday-night': normalized.captainData };
-    normalized.tournamentAuctions = cleanedSaved.tournamentAuctions || { 't-friday-night': normalized.auction };
-    normalized.tournamentCompetitions = cleanedSaved.tournamentCompetitions || { 't-friday-night': createCompetition() };
-    normalized.tournaments.forEach((tournament) => {
-      if (tournament.id === 't-friday-night' && !tournament.captains) tournament.captains = captains.map((captain) => ({ ...captain }));
-      if (tournament.captains) {
-        tournament.captains = tournament.captains.map((captain) => ({
-          ...captain,
-          club: { ...getClubInfo(captain), color: undefined, initials: undefined },
-        }));
-      }
-      if (!normalized.tournamentPlayerIds[tournament.id]) normalized.tournamentPlayerIds[tournament.id] = [];
-      if (!normalized.tournamentCaptainData[tournament.id]) normalized.tournamentCaptainData[tournament.id] = createCaptainData(tournament.budget);
-      if (!normalized.tournamentAuctions[tournament.id]) normalized.tournamentAuctions[tournament.id] = createAuction();
-      if (!normalized.tournamentCompetitions[tournament.id]) normalized.tournamentCompetitions[tournament.id] = createCompetition();
-    });
-    return normalized;
+    return normalizeLoadedState(saved);
   } catch {
     return createDefaultState();
   }
 }
 
 const normalizeLoadedState = (saved) => {
-  if (!saved?.players || !saved?.captainData || !saved?.auction) return createDefaultState();
+  if (!saved || typeof saved !== 'object') return createDefaultState();
   const base = createDefaultState();
   const cleanedSaved = sanitizeState(saved);
-  const normalized = { ...base, ...cleanedSaved, captainData: { ...base.captainData } };
-  const needsDemoPicks = false;
-  const soldPlayerIds = new Set(Object.values(cleanedSaved.captainData).flatMap((data) => data.squad || []));
-  captains.forEach((captain) => {
-    const prior = cleanedSaved.captainData[captain.id] || {};
-    const formation = formations[prior.formation] ? prior.formation : '4-3-3';
-    const activeSpots = new Set(formations[formation].map((spot) => spot.id));
-    const lineup = Object.fromEntries(Object.entries(prior.lineup || {}).filter(([spotId]) => activeSpots.has(spotId)));
-    const captainMemberId = `captain:${captain.id}`;
-    if (!Object.values(lineup).includes(captainMemberId)) lineup.GK = captainMemberId;
-    const seededShortlist = demoCaptainShortlists[captain.id]?.filter((playerId) => !soldPlayerIds.has(playerId)) || [];
-    const shortlist = needsDemoPicks && captain.id !== 'cap-tariq' && !prior.shortlist?.length ? seededShortlist : (prior.shortlist || base.captainData[captain.id].shortlist);
-    normalized.captainData[captain.id] = { ...base.captainData[captain.id], ...prior, formation, lineup, shortlist };
-  });
+  const normalized = { ...base, ...cleanedSaved };
+  normalized.players = cleanedSaved.players || [];
+  normalized.captainData = sanitizeCaptainData(cleanedSaved.captainData || {});
   normalized.demoPicksVersion = 1;
-  normalized.tournaments = cleanedSaved.tournaments?.length ? cleanedSaved.tournaments : seedTournaments;
-  normalized.tournamentPlayerIds = cleanedSaved.tournamentPlayerIds || { 't-friday-night': normalized.players.map((player) => player.id) };
-  normalized.tournamentCaptainData = cleanedSaved.tournamentCaptainData || { 't-friday-night': normalized.captainData };
-  normalized.tournamentAuctions = cleanedSaved.tournamentAuctions || { 't-friday-night': normalized.auction };
-  normalized.tournamentCompetitions = cleanedSaved.tournamentCompetitions || { 't-friday-night': createCompetition() };
+  normalized.tournaments = cleanedSaved.tournaments || [];
+  normalized.tournamentPlayerIds = cleanedSaved.tournamentPlayerIds || {};
+  normalized.tournamentCaptainData = cleanedSaved.tournamentCaptainData || {};
+  normalized.tournamentAuctions = cleanedSaved.tournamentAuctions || {};
+  normalized.tournamentCompetitions = cleanedSaved.tournamentCompetitions || {};
   normalized.tournaments.forEach((tournament) => {
-    if (tournament.id === 't-friday-night' && !tournament.captains) tournament.captains = captains.map((captain) => ({ ...captain }));
-    if (tournament.captains) {
-      tournament.captains = tournament.captains.map((captain) => ({
-        ...captain,
-        club: { ...getClubInfo(captain), color: undefined, initials: undefined },
-      }));
-    }
+    tournament.captains = (tournament.captains || []).map((captain) => ({
+      ...captain,
+      club: { ...getClubInfo(captain), color: undefined, initials: undefined },
+    }));
     if (!normalized.tournamentPlayerIds[tournament.id]) normalized.tournamentPlayerIds[tournament.id] = [];
-    if (!normalized.tournamentCaptainData[tournament.id]) normalized.tournamentCaptainData[tournament.id] = createCaptainData(tournament.budget);
+    if (!normalized.tournamentCaptainData[tournament.id]) normalized.tournamentCaptainData[tournament.id] = {};
+    tournament.captains.forEach((captain) => {
+      if (!normalized.tournamentCaptainData[tournament.id][captain.id]) {
+        normalized.tournamentCaptainData[tournament.id][captain.id] = {
+          formation: '4-3-3',
+          shortlist: [],
+          budget: Number(tournament.budget || 1000),
+          squad: [],
+          lineup: { GK: `captain:${captain.id}` },
+          squadConfirmed: false,
+        };
+      }
+    });
     if (!normalized.tournamentAuctions[tournament.id]) normalized.tournamentAuctions[tournament.id] = createAuction();
     if (!normalized.tournamentCompetitions[tournament.id]) normalized.tournamentCompetitions[tournament.id] = createCompetition();
   });
@@ -475,20 +447,24 @@ function Login({ onLogin, players, captains }) {
   const [role, setRole] = useState('captain');
   const [selected, setSelected] = useState('');
   const [playerSelected, setPlayerSelected] = useState(players[0]?.id || '');
+  const hasCaptains = captains.length > 0;
   const hasPlayers = players.length > 0;
   const canEnter = role === 'organizer' || (role === 'captain' ? Boolean(selected) : Boolean(playerSelected));
 
   useEffect(() => {
-    if (captains && captains.length > 0 && !selected) {
+    if (hasCaptains && !selected) {
       setSelected(captains[0].id);
     }
-  }, [captains, selected]);
+  }, [captains, hasCaptains, selected]);
 
   useEffect(() => {
-    if (role === 'captain' && captains && captains.length > 0 && !captains.some((c) => c.id === selected)) {
+    if (role === 'captain' && hasCaptains && !captains.some((c) => c.id === selected)) {
       setSelected(captains[0].id);
     }
-  }, [captains, role, selected]);
+    if (role === 'captain' && !hasCaptains && selected) {
+      setSelected('');
+    }
+  }, [captains, hasCaptains, role, selected]);
 
   useEffect(() => {
     if (role === 'player' && hasPlayers && !players.some((player) => player.id === playerSelected)) {
@@ -507,7 +483,7 @@ function Login({ onLogin, players, captains }) {
       <section className="login-hero">
         <div className="eyebrow"><Sparkles size={14} /> Your squad starts here</div>
         <h1>Pick your side.<br /><em>Build your legacy.</em></h1>
-        <p>One player pool. Four captains. A thousand coins each.<br />Absolutely no friendships guaranteed.</p>
+        <p>Organizer-built rosters. Live captain rooms. One shared auction night.<br />Absolutely no friendships guaranteed.</p>
       </section>
       <section className="login-card">
         <div className="login-card-top">
@@ -533,7 +509,9 @@ function Login({ onLogin, players, captains }) {
         ) : (
           <>
             <label className="field-label">{role === 'captain' ? 'Choose your captain profile' : 'Choose your player profile'}</label>
-            {role === 'player' && !hasPlayers ? (
+            {role === 'captain' && !hasCaptains ? (
+              <div className="organizer-login-note"><Trophy size={21} /><span><strong>No captain profiles yet</strong><small>The organizer needs to create a tournament and promote players to captain.</small></span></div>
+            ) : role === 'player' && !hasPlayers ? (
               <div className="organizer-login-note"><UserPlus size={21} /><span><strong>No player profiles yet</strong><small>The organizer needs to add players to a roster before player login is available.</small></span></div>
             ) : (
               <div className="select-wrap">
@@ -625,7 +603,7 @@ function TournamentSelector({ user, state, onSelect, onLogout }) {
         {state.tournaments.map((tournament) => {
           const playerIds = state.tournamentPlayerIds[tournament.id] || [];
           const started = tournament.status === 'active';
-          const tourCaptains = tournament.captains || (tournament.id === 't-friday-night' ? captains : []);
+          const tourCaptains = tournament.captains || [];
           const isCaptain = tourCaptains.some((c) => c.id === user.id);
           const isPlayer = playerIds.includes(user.id);
           const eligible = user.role === 'captain' ? isCaptain : isPlayer;
@@ -978,7 +956,7 @@ function OrganizerDashboard({ state, updateState, onLogout }) {
           <div className="organizer-section-head"><div><span className="page-kicker">Tournament control</span><h1>Competitions</h1></div><button className="primary icon-only" aria-label="Create tournament" onClick={() => setShowCreate((value) => !value)}><Plus size={18} /></button></div>
           {showCreate && (
             <div className="create-tournament-form">
-              <label><span>Tournament name</span><input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder="Friday Night FC" /></label>
+              <label><span>Tournament name</span><input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder="Auction Night" /></label>
               <div className="form-row">
                 <label><span>Start Date</span><input type="date" value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} /></label>
                 <label><span>Captains</span><input type="number" min="2" max="8" value={form.captainCount} onChange={(event) => setForm({ ...form, captainCount: event.target.value })} /></label>
@@ -1217,7 +1195,7 @@ function OrganizerDashboard({ state, updateState, onLogout }) {
 
 
 function AppShell({ user, active, setActive, onLogout, onChangeTournament, children, budget, tournament, players, captains: propCaptains }) {
-  const resolvedCaptains = propCaptains && propCaptains.length ? propCaptains : captains;
+  const resolvedCaptains = propCaptains || [];
   const captain = resolvedCaptains.find((item) => item.id === user.id);
   const club = getClubInfo(captain);
   const isCaptain = user.role === 'captain';
@@ -2053,8 +2031,15 @@ export default function App() {
       }
 
       if (data?.state) {
+        const normalizedRemote = normalizeLoadedState(data.state);
         applyingRemoteState.current = true;
-        setState(normalizeLoadedState(data.state));
+        setState(normalizedRemote);
+        if (JSON.stringify(normalizedRemote) !== JSON.stringify(data.state)) {
+          const { error: cleanupError } = await supabase
+            .from(SUPABASE_STATE_TABLE)
+            .upsert({ id: SUPABASE_STATE_ID, state: normalizedRemote, updated_at: new Date().toISOString() });
+          if (cleanupError) console.error('Supabase cleanup failed', cleanupError);
+        }
         setSyncStatus('Live sync on');
       } else {
         const initialState = normalizeLoadedState(state);
@@ -2138,7 +2123,7 @@ export default function App() {
   const logout = () => { setUser(null); setSelectedTournamentId(null); };
   const tournament = state.tournaments.find((item) => item.id === selectedTournamentId);
   const tournamentPlayerIds = state.tournamentPlayerIds[selectedTournamentId] || [];
-  const tournamentCaptains = tournament ? (tournament.captains || (tournament.id === 't-friday-night' ? captains : [])) : [];
+  const tournamentCaptains = tournament ? (tournament.captains || []) : [];
   const tournamentState = tournament ? {
     players: auctionEligiblePlayers(state.players.filter((player) => tournamentPlayerIds.includes(player.id)), tournamentCaptains),
     captainData: state.tournamentCaptainData[selectedTournamentId],
@@ -2152,7 +2137,7 @@ export default function App() {
     if (!draft.tournamentCompetitions) draft.tournamentCompetitions = {};
     const ids = new Set(draft.tournamentPlayerIds[selectedTournamentId] || []);
     const targetTournament = draft.tournaments.find((t) => t.id === selectedTournamentId);
-    const scopedCaptains = targetTournament ? (targetTournament.captains || (targetTournament.id === 't-friday-night' ? captains : [])) : [];
+    const scopedCaptains = targetTournament ? (targetTournament.captains || []) : [];
     const scoped = {
       players: auctionEligiblePlayers(draft.players.filter((player) => ids.has(player.id)), scopedCaptains),
       captainData: draft.tournamentCaptainData[selectedTournamentId],
@@ -2185,7 +2170,7 @@ export default function App() {
         });
       }
     });
-    return list.length ? list : captains;
+    return list;
   }, [state.tournaments]);
 
   let view;
