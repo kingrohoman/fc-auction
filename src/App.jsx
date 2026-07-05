@@ -907,6 +907,22 @@ function OrganizerDashboard({ state, updateState, onLogout }) {
     });
   };
 
+  const readyAllPlayerProfiles = () => {
+    updateState((draft) => {
+      const ids = new Set(draft.tournamentPlayerIds[tournament.id] || []);
+      draft.players = draft.players.map((player) => {
+        if (ids.has(player.id)) {
+          return {
+            ...player,
+            profileReady: true,
+            profileUpdatedAt: new Date().toISOString()
+          };
+        }
+        return player;
+      });
+    });
+  };
+
   const readCsv = async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -1117,11 +1133,18 @@ function OrganizerDashboard({ state, updateState, onLogout }) {
                       <h3>Tournament Roster</h3>
                       <p>{tournamentPlayers.length} players currently registered in this competition.</p>
                     </div>
-                    {tournament.status === 'draft' ? (
-                      <button className="secondary" onClick={() => setShowAddPlayer(!showAddPlayer)}>{showAddPlayer ? <X size={15} /> : <UserPlus size={15} />} {showAddPlayer ? 'Cancel' : 'Add Player'}</button>
-                    ) : (
-                      <span className="roster-status-locked" style={{ fontSize: '12px', color: 'var(--muted)', display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'rgba(255,255,255,0.03)', padding: '4px 8px', borderRadius: '6px' }}>🔒 Roster Locked</span>
-                    )}
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      {tournamentPlayers.some(p => !isPlayerProfileReady(p)) && (
+                        <button className="secondary" onClick={readyAllPlayerProfiles}>
+                          <BadgeCheck size={15} /> Ready All Profiles
+                        </button>
+                      )}
+                      {tournament.status === 'draft' ? (
+                        <button className="secondary" onClick={() => setShowAddPlayer(!showAddPlayer)}>{showAddPlayer ? <X size={15} /> : <UserPlus size={15} />} {showAddPlayer ? 'Cancel' : 'Add Player'}</button>
+                      ) : (
+                        <span className="roster-status-locked" style={{ fontSize: '12px', color: 'var(--muted)', display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'rgba(255,255,255,0.03)', padding: '4px 8px', borderRadius: '6px' }}>🔒 Roster Locked</span>
+                      )}
+                    </div>
                   </div>
                   {showAddPlayer && tournament.status === 'draft' && (
                     <div className="manual-player-form">
