@@ -1378,6 +1378,31 @@ function OrganizerDashboard({ state, updateState, onLogout }) {
     setImportMessage('');
   };
 
+  const resetAuction = () => {
+    if (!window.confirm("Are you sure you want to reset the auction? This will clear all drafted squads, restore all captains' coin budgets, delete match fixtures, and restart the bidding room. Captain logins and roster players will be kept.")) return;
+    
+    updateState((draft) => {
+      const tourId = tournament.id;
+      const tCapData = draft.tournamentCaptainData[tourId] || {};
+      tournament.captains.forEach((cap) => {
+        tCapData[cap.id] = {
+          formation: '4-3-3',
+          shortlist: [],
+          budget: Number(tournament.budget || 1000),
+          squad: [],
+          lineup: { GK: `captain:${cap.id}` },
+          squadConfirmed: false
+        };
+      });
+      draft.tournamentCaptainData[tourId] = tCapData;
+      draft.tournamentAuctions[tourId] = createAuction();
+      draft.tournamentCompetitions[tourId] = createCompetition();
+    });
+
+    alert("Auction and squads have been reset successfully!");
+    setOrgTab('roster');
+  };
+
   const startEditing = () => {
     const defaultTeamSize = tournament.teamSize || Math.floor(Number(tournament.totalPlayers || 16) / Number(tournament.captainCount)) || 4;
     setEditForm({
@@ -1981,6 +2006,7 @@ function OrganizerDashboard({ state, updateState, onLogout }) {
                   ) : (
                     <>
                       <button className="secondary" onClick={resetTournament}><RotateCcw size={17} /> Reset to Draft</button>
+                      <button className="secondary" onClick={resetAuction}><RotateCcw size={17} /> Reset Auction &amp; Squads</button>
                       {tournamentState?.auction?.phase !== 'complete' && (
                         <button className="secondary" onClick={simulateAuction}><Sparkles size={17} /> Auto-draft &amp; Complete Auction</button>
                       )}
