@@ -338,6 +338,7 @@ const createDefaultState = () => ({
   tournamentCaptainData: {},
   tournamentAuctions: {},
   tournamentCompetitions: {},
+  tournamentPasswords: {},
   demoPicksVersion: 1,
 });
 
@@ -424,6 +425,7 @@ const normalizeLoadedState = (saved) => {
   normalized.tournamentCaptainData = cleanedSaved.tournamentCaptainData || {};
   normalized.tournamentAuctions = cleanedSaved.tournamentAuctions || {};
   normalized.tournamentCompetitions = cleanedSaved.tournamentCompetitions || {};
+  normalized.tournamentPasswords = cleanedSaved.tournamentPasswords || {};
   normalized.tournaments.forEach((tournament) => {
     tournament.captains = (tournament.captains || []).map((captain) => ({
       ...captain,
@@ -494,13 +496,14 @@ function ThemeToggle({ theme, onToggle }) {
   );
 }
 
-function Login({ onLogin, players, captains }) {
+function Login({ onLogin, players, captains, state }) {
   const [role, setRole] = useState('captain');
   const [selected, setSelected] = useState('');
   const [playerSelected, setPlayerSelected] = useState(players[0]?.id || '');
+  const [password, setPassword] = useState('');
   const hasCaptains = captains.length > 0;
   const hasPlayers = players.length > 0;
-  const canEnter = role === 'organizer' || (role === 'captain' ? Boolean(selected) : Boolean(playerSelected));
+  const canEnter = (role === 'organizer' || (role === 'captain' ? Boolean(selected) : Boolean(playerSelected))) && Boolean(password);
 
   useEffect(() => {
     if (hasCaptains && !selected) {
@@ -526,6 +529,46 @@ function Login({ onLogin, players, captains }) {
     }
   }, [hasPlayers, playerSelected, players, role]);
 
+  const getUserTournament = (userId, userRole) => {
+    if (!state || !state.tournaments) return null;
+    return state.tournaments.find((t) => {
+      if (t.status !== 'active') return false;
+      if (userRole === 'captain') {
+        return t.captains?.some((c) => c.id === userId);
+      } else if (userRole === 'player') {
+        const pIds = state.tournamentPlayerIds[t.id] || [];
+        return pIds.includes(userId);
+      }
+      return false;
+    });
+  };
+
+  const handleLoginClick = () => {
+    const userId = role === 'organizer' ? 'organizer' : role === 'captain' ? selected : playerSelected;
+    
+    if (role === 'organizer') {
+      if (password !== 'Rohoman121!') {
+        alert("Invalid organizer password!");
+        return;
+      }
+    } else {
+      const userTour = getUserTournament(userId, role);
+      if (userTour) {
+        const generatedPasswords = state.tournamentPasswords?.[userTour.id] || {};
+        const correctPassword = generatedPasswords[userId];
+        if (correctPassword && password !== correctPassword) {
+          alert("Invalid password!");
+          return;
+        }
+      } else {
+        alert("Lobby is not open yet (tournament not started).");
+        return;
+      }
+    }
+    
+    onLogin({ role, id: userId });
+  };
+
   return (
     <main className="login-page">
       <div className="login-glow login-glow-one" />
@@ -545,13 +588,13 @@ function Login({ onLogin, players, captains }) {
           <span className="secure-badge"><Shield size={14} /> Private lobby</span>
         </div>
         <div className="role-tabs">
-          <button className={role === 'captain' ? 'active' : ''} onClick={() => setRole('captain')}>
+          <button className={role === 'captain' ? 'active' : ''} onClick={() => { setRole('captain'); setPassword(''); }}>
             <Trophy size={18} /> Captain
           </button>
-          <button className={role === 'player' ? 'active' : ''} onClick={() => setRole('player')}>
+          <button className={role === 'player' ? 'active' : ''} onClick={() => { setRole('player'); setPassword(''); }}>
             <UserRound size={18} /> Player
           </button>
-          <button className={role === 'organizer' ? 'active' : ''} onClick={() => setRole('organizer')}>
+          <button className={role === 'organizer' ? 'active' : ''} onClick={() => { setRole('organizer'); setPassword(''); }}>
             <Shield size={18} /> Organizer
           </button>
         </div>
@@ -579,10 +622,34 @@ function Login({ onLogin, players, captains }) {
             )}
           </>
         )}
-        <button className="primary full" disabled={!canEnter} onClick={() => onLogin({ role, id: role === 'organizer' ? 'organizer' : role === 'captain' ? selected : playerSelected })}>
+        
+        {((role === 'organizer') || (role === 'captain' && hasCaptains) || (role === 'player' && hasPlayers)) && (
+          <div style={{ marginBottom: '20px' }}>
+            <label className="field-label" htmlFor="login-password">Password</label>
+            <input
+              id="login-password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              style={{
+                width: '100%',
+                color: 'var(--ink)',
+                background: '#0a120f',
+                border: '1px solid var(--line)',
+                borderRadius: '11px',
+                padding: '14px',
+                outline: 'none',
+                fontSize: '13px'
+              }}
+            />
+          </div>
+        )}
+
+        <button className="primary full" disabled={!canEnter} onClick={handleLoginClick}>
           Enter as {role === 'organizer' ? 'organizer' : role} <ArrowRight size={18} />
         </button>
-        <p className="login-note">No password needed in this prototype. Real authentication comes with the shared backend.</p>
+        <p className="login-note">Passwords are generated by the organizer when starting a tournament.</p>
       </section>
       <footer className="login-footer">
         <span><span className="live-dot" /> Lobby opens Friday · 8:30 PM</span>
@@ -1491,10 +1558,34 @@ function OrganizerDashboard({ state, updateState, onLogout }) {
       alert(`Cannot start tournament. You must have at least ${requiredPlayers} players registered on the roster first to fill all ${tournament.captainCount} teams of size ${tournament.teamSize}. (Currently: ${registeredCount} registered)`);
       return;
     }
+
+    const passwords = { organizer: "Rohoman121!" };
+    const generatePassword = () => {
+      const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+      let pass = '';
+      for (let i = 0; i < 8; i++) {
+        pass += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      return pass;
+    };
+    tournament.captains.forEach((c) => {
+      passwords[c.id] = generatePassword();
+    });
+    playerIds.forEach((pid) => {
+      if (!passwords[pid]) {
+        passwords[pid] = generatePassword();
+      }
+    });
+
     updateState((draft) => {
       const target = draft.tournaments.find((item) => item.id === tournament.id);
       if (target) target.status = 'active';
+      if (!draft.tournamentPasswords) draft.tournamentPasswords = {};
+      draft.tournamentPasswords[tournament.id] = passwords;
     });
+
+    const tPlayers = state.players.filter((p) => playerIds.includes(p.id));
+    downloadPasswordsCsv(tournament.id, passwords, tournament.captains, tPlayers);
   };
 
   const simulateAuction = () => {
@@ -1512,10 +1603,31 @@ function OrganizerDashboard({ state, updateState, onLogout }) {
     }
     if (!window.confirm("This will auto-draft all registered players to the captains' squads, schedule the double round-robin fixtures, and complete the auction phase. Continue?")) return;
 
+    const passwords = { organizer: "Rohoman121!" };
+    const generatePassword = () => {
+      const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+      let pass = '';
+      for (let i = 0; i < 8; i++) {
+        pass += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      return pass;
+    };
+    tournament.captains.forEach((c) => {
+      passwords[c.id] = generatePassword();
+    });
+    playerIds.forEach((pid) => {
+      if (!passwords[pid]) {
+        passwords[pid] = generatePassword();
+      }
+    });
+
     updateState((draft) => {
       const tourId = tournament.id;
       const target = draft.tournaments.find((item) => item.id === tourId);
       if (target) target.status = 'active';
+
+      if (!draft.tournamentPasswords) draft.tournamentPasswords = {};
+      draft.tournamentPasswords[tourId] = passwords;
 
       const tCapData = draft.tournamentCaptainData[tourId] || {};
       tournament.captains.forEach((cap) => {
@@ -1583,6 +1695,9 @@ function OrganizerDashboard({ state, updateState, onLogout }) {
       draft.tournamentCompetitions[tourId].matches = createLeagueFixtures(capIds);
       draft.tournamentCompetitions[tourId].playerStats = [];
     });
+
+    const tPlayers = state.players.filter((p) => playerIds.includes(p.id));
+    downloadPasswordsCsv(tournament.id, passwords, tournament.captains, tPlayers);
     setOrgTab('tournament');
   };
 
@@ -1676,6 +1791,31 @@ function OrganizerDashboard({ state, updateState, onLogout }) {
     document.body.removeChild(link);
   };
 
+  const downloadPasswordsCsv = (tourId, passwords, captains, players) => {
+    let csvContent = "data:text/csv;charset=utf-8,Role,Name,ID,Password\n";
+    csvContent += `Organizer,Organizer,organizer,Rohoman121!\n`;
+    
+    captains.forEach((c) => {
+      const pw = passwords[c.id] || 'N/A';
+      csvContent += `Captain,${c.name},${c.id},${pw}\n`;
+    });
+    
+    players.forEach((p) => {
+      if (!captains.some((c) => c.id === p.id)) {
+        const pw = passwords[p.id] || 'N/A';
+        csvContent += `Player,${p.name},${p.id},${pw}\n`;
+      }
+    });
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `tournament_passwords_${tourId}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const downloadBackup = () => {
     try {
       const dataStr = JSON.stringify(state, null, 2);
@@ -1728,6 +1868,7 @@ function OrganizerDashboard({ state, updateState, onLogout }) {
           draft.tournamentCaptainData = parsed.tournamentCaptainData;
           draft.tournamentAuctions = parsed.tournamentAuctions;
           draft.tournamentCompetitions = parsed.tournamentCompetitions || {};
+          draft.tournamentPasswords = parsed.tournamentPasswords || {};
         });
 
         alert("Backup restored successfully!");
@@ -3411,7 +3552,7 @@ export default function App() {
   }, [state.tournaments]);
 
   let view;
-  if (!user) view = <Login onLogin={login} players={state.players} captains={loginCaptains} />;
+  if (!user) view = <Login onLogin={login} players={state.players} captains={loginCaptains} state={state} />;
   else if (user.role === 'organizer') view = <OrganizerDashboard state={state} updateState={updateState} onLogout={logout} tournamentState={tournamentState} updateTournamentState={updateTournamentState} />;
   else if (!tournament) view = <TournamentSelector user={user} state={state} onSelect={setSelectedTournamentId} onLogout={logout} />;
   else view = (
