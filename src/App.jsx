@@ -2676,8 +2676,11 @@ function BiddingRoom({ user, state, updateState, onReset }) {
   const passCurrentPlayer = () => {
     if (!isCaptainUser) return;
     updateState((draft) => {
-      const tourId = tournament.id;
-      const tAuction = draft.tournamentAuctions[tourId];
+      const tAuction = draft.auction || draft.tournamentAuctions?.[tournament.id];
+      const tCapData = draft.captainData || draft.tournamentCaptainData?.[tournament.id] || {};
+      
+      if (!tAuction) return;
+
       if (!tAuction.passedCaptains) {
         tAuction.passedCaptains = [];
       }
@@ -2691,7 +2694,6 @@ function BiddingRoom({ user, state, updateState, onReset }) {
       });
 
       // Check if all open teams have passed
-      const tCapData = draft.tournamentCaptainData[tourId] || {};
       const openTeams = tournament.captains.filter((cap) => {
         const data = tCapData[cap.id] || { squad: [] };
         const f = 1 + new Set((data.squad || []).filter((pid) => pid !== cap.id)).size;
@@ -2705,7 +2707,8 @@ function BiddingRoom({ user, state, updateState, onReset }) {
         const passEntry = { type: 'pass', text: `${passed?.tag || 'Player'} passed · no sale, back in the pool` };
 
         const order = tAuction.order || [];
-        const sold = new Set(Object.values(tCapData).flatMap((d) => d.squad || []));
+        const tCapSquads = Object.values(tCapData).flatMap((d) => d.squad || []);
+        const sold = new Set(tCapSquads);
         const remainingOrder = order.filter((pid) => !sold.has(pid));
         const unsoldPlayers = draft.players.filter((p) => !sold.has(p.id) && !tournament.captains.some(cap => cap.id === p.id));
         const remainingOpenTeams = tournament.captains.filter((cap) => {
@@ -2715,7 +2718,7 @@ function BiddingRoom({ user, state, updateState, onReset }) {
         });
 
         if (remainingOpenTeams.length === 0 || unsoldPlayers.length === 0) {
-          draft.tournamentAuctions[tourId] = {
+          const completeState = {
             phase: 'complete',
             votes: {},
             playerId: null,
@@ -2723,9 +2726,14 @@ function BiddingRoom({ user, state, updateState, onReset }) {
             leaderId: null,
             history: [{ type: 'complete', text: 'Auction complete · All squads set' }, passEntry, ...tAuction.history]
           };
+          if (draft.auction) {
+            draft.auction = completeState;
+          } else {
+            draft.tournamentAuctions[tournament.id] = completeState;
+          }
         } else if (remainingOrder.length > 0) {
           const nextPlayerId = remainingOrder.shift();
-          draft.tournamentAuctions[tourId] = {
+          const nextBiddingState = {
             ...tAuction,
             phase: 'bidding',
             playerId: nextPlayerId,
@@ -2737,6 +2745,11 @@ function BiddingRoom({ user, state, updateState, onReset }) {
             order: remainingOrder,
             history: [passEntry, ...tAuction.history]
           };
+          if (draft.auction) {
+            draft.auction = nextBiddingState;
+          } else {
+            draft.tournamentAuctions[tournament.id] = nextBiddingState;
+          }
         } else {
           // Auto-queue remaining unsold players
           const unsoldRegistered = unsoldPlayers.filter((p) => !tournament.captains.some((c) => c.id === p.id));
@@ -2744,7 +2757,7 @@ function BiddingRoom({ user, state, updateState, onReset }) {
             const shuffled = [...unsoldRegistered].sort(() => Math.random() - 0.5);
             const nextPlayerId = shuffled.shift();
             const nextOrder = shuffled.map((p) => p.id);
-            draft.tournamentAuctions[tourId] = {
+            const nextBiddingState = {
               ...tAuction,
               phase: 'bidding',
               playerId: nextPlayerId,
@@ -2756,8 +2769,13 @@ function BiddingRoom({ user, state, updateState, onReset }) {
               order: nextOrder,
               history: [passEntry, ...tAuction.history]
             };
+            if (draft.auction) {
+              draft.auction = nextBiddingState;
+            } else {
+              draft.tournamentAuctions[tournament.id] = nextBiddingState;
+            }
           } else {
-            draft.tournamentAuctions[tourId] = {
+            const completeState = {
               phase: 'complete',
               votes: {},
               playerId: null,
@@ -2765,6 +2783,11 @@ function BiddingRoom({ user, state, updateState, onReset }) {
               leaderId: null,
               history: [{ type: 'complete', text: 'Auction complete · All squads set' }, passEntry, ...tAuction.history]
             };
+            if (draft.auction) {
+              draft.auction = completeState;
+            } else {
+              draft.tournamentAuctions[tournament.id] = completeState;
+            }
           }
         }
       }
