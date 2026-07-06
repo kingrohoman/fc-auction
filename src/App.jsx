@@ -1485,6 +1485,12 @@ function OrganizerDashboard({ state, updateState, onLogout }) {
       alert(`Please select exactly ${required} captains from the roster first. (Currently: ${current} selected)`);
       return;
     }
+    const requiredPlayers = Number(tournament.totalPlayers || (tournament.captainCount * tournament.teamSize));
+    const registeredCount = playerIds.length;
+    if (registeredCount < requiredPlayers) {
+      alert(`Cannot start tournament. You must have at least ${requiredPlayers} players registered on the roster first to fill all ${tournament.captainCount} teams of size ${tournament.teamSize}. (Currently: ${registeredCount} registered)`);
+      return;
+    }
     updateState((draft) => {
       const target = draft.tournaments.find((item) => item.id === tournament.id);
       if (target) target.status = 'active';
@@ -1496,6 +1502,12 @@ function OrganizerDashboard({ state, updateState, onLogout }) {
     const current = tournament.captains?.length || 0;
     if (current !== required) {
       alert(`Please select exactly ${required} captains from the roster first. (Currently: ${current} selected)`);
+      return;
+    }
+    const requiredPlayers = Number(tournament.totalPlayers || (tournament.captainCount * tournament.teamSize));
+    const registeredCount = playerIds.length;
+    if (registeredCount < requiredPlayers) {
+      alert(`Cannot start auto-draft. You must have at least ${requiredPlayers} players registered on the roster first to fill all ${tournament.captainCount} teams of size ${tournament.teamSize}. (Currently: ${registeredCount} registered)`);
       return;
     }
     if (!window.confirm("This will auto-draft all registered players to the captains' squads, schedule the double round-robin fixtures, and complete the auction phase. Continue?")) return;
