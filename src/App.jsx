@@ -2576,10 +2576,6 @@ function BiddingRoom({ user, state, updateState, onReset }) {
   const canAfford = state.captainData[user.id].budget >= nextBid && !squadFull;
 
   const [timeLeft, setTimeLeft] = useState(0);
-  const [localBidCooldown, setLocalBidCooldown] = useState(false);
-
-  const globalCooldown = auction.lastBidTime && (Date.now() - auction.lastBidTime < 1000);
-  const isBidLocked = localBidCooldown || globalCooldown;
 
   useEffect(() => {
     if (!auction.countdownEndTime) {
@@ -2596,10 +2592,6 @@ function BiddingRoom({ user, state, updateState, onReset }) {
   }, [auction.countdownEndTime]);
 
   const bid = () => {
-    if (isBidLocked) return;
-    setLocalBidCooldown(true);
-    setTimeout(() => setLocalBidCooldown(false), 1000);
-
     updateState((draft) => {
       const price = draft.auction.leaderId ? draft.auction.bid + 25 : 50;
       if (draft.captainData[user.id].budget < price) return;
@@ -2678,8 +2670,8 @@ function BiddingRoom({ user, state, updateState, onReset }) {
               <Clock3 size={15} /> Closing in {timeLeft}s
             </div>
           )}
-          <button className="bid-button" onClick={bid} disabled={!canAfford || auction.leaderId === user.id || isBidLocked}>
-            <span>{isBidLocked ? 'Processing bid...' : 'Place bid'}</span><strong><Coins size={22} /> {nextBid}</strong>
+          <button className="bid-button" onClick={bid} disabled={!canAfford || auction.leaderId === user.id}>
+            <span>Place bid</span><strong><Coins size={22} /> {nextBid}</strong>
           </button>
           <p className="bid-helper">You have <b>{money(state.captainData[user.id].budget)}</b> coins available.{squadFull && <><br /><b>Your squad is full.</b></>}</p>
         </section>
