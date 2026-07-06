@@ -237,7 +237,8 @@ const createAuction = () => ({
   history: [],
   order: [],
   countdownEndTime: null,
-  lastBidTime: 0
+  lastBidTime: 0,
+  passedCaptains: []
 });
 
 const auctionEligiblePlayers = (players, tournamentCaptains = []) => {
@@ -856,11 +857,18 @@ function OrganizerAuctionPanel({ tournament, state, updateState }) {
       const squadSize = (captainId, data) => 1 + new Set((data.squad || []).filter((pid) => pid !== captainId)).size;
       
       const rivalPrice = tAuction.leaderId ? tAuction.bid + 25 : 50;
-      const rivals = tournament.captains.filter((captain) => (
-        captain.id !== tAuction.leaderId
-        && tCapData[captain.id].budget >= rivalPrice
-        && squadSize(captain.id, tCapData[captain.id]) < teamSize
-      ));
+      const rivals = tournament.captains.filter((captain) => {
+        const cData = tCapData[captain.id];
+        const filled = squadSize(captain.id, cData);
+        const needed = teamSize - filled;
+        const reserveAmount = Math.max(0, needed - 1) * 50;
+        const availableBudget = cData.budget - reserveAmount;
+        return (
+          captain.id !== tAuction.leaderId
+          && availableBudget >= rivalPrice
+          && filled < teamSize
+        );
+      });
       if (!rivals.length) return;
       const rival = rivals[Math.floor(Math.random() * rivals.length)];
       tAuction.bid = rivalPrice;
@@ -914,6 +922,7 @@ function OrganizerAuctionPanel({ tournament, state, updateState }) {
           playerId: nextPlayerId,
           bid: 50,
           leaderId: null,
+          passedCaptains: [],
           order: remainingOrder,
           history: [
             { type: 'nomination', text: `${draft.players.find((p) => p.id === nextPlayerId)?.tag} nominated at 50 coins` },
@@ -934,6 +943,7 @@ function OrganizerAuctionPanel({ tournament, state, updateState }) {
             playerId: firstPlayer.id,
             bid: 50,
             leaderId: null,
+            passedCaptains: [],
             order: remainingUnsoldIds,
             history: [
               { type: 'nomination', text: `${firstPlayer.tag} nominated at 50 coins (automatic pool queue)` },
@@ -987,6 +997,7 @@ function OrganizerAuctionPanel({ tournament, state, updateState }) {
           playerId: nextPlayerId,
           bid: 50,
           leaderId: null,
+          passedCaptains: [],
           order: remainingOrder,
           history: [
             { type: 'nomination', text: `${draft.players.find((p) => p.id === nextPlayerId)?.tag} nominated at 50 coins` },
@@ -1007,6 +1018,7 @@ function OrganizerAuctionPanel({ tournament, state, updateState }) {
             playerId: firstPlayer.id,
             bid: 50,
             leaderId: null,
+            passedCaptains: [],
             order: remainingUnsoldIds,
             history: [
               { type: 'nomination', text: `${firstPlayer.tag} nominated at 50 coins (automatic pool queue)` },
@@ -1210,7 +1222,27 @@ function OrganizerAuctionPanel({ tournament, state, updateState }) {
                 const isFull = filled >= teamSize;
                 return (
                   <div className={auction.leaderId === cap.id ? 'leading' : ''} key={cap.id}>
-                    <ClubMark club={club} size="xs" />
+                    <div style={{ position: 'relative' }}>
+                      <ClubMark club={club} size="xs" />
+                      {auction.passedCaptains?.includes(cap.id) && (
+                        <div style={{
+                          position: 'absolute',
+                          top: -3,
+                          right: -3,
+                          background: 'var(--red, #ff3b30)',
+                          color: '#fff',
+                          borderRadius: '50%',
+                          width: '12px',
+                          height: '12px',
+                          display: 'grid',
+                          placeItems: 'center',
+                          fontSize: '8px',
+                          fontWeight: 'bold',
+                          lineHeight: 1,
+                          border: '1px solid var(--panel)'
+                        }}>✕</div>
+                      )}
+                    </div>
                     <span>
                       <strong>{club.name}</strong>
                       {isFull
@@ -2529,13 +2561,14 @@ function VotingRoom({ user, state, updateState, onReset }) {
     draft.auction.playerId = winner;
     draft.auction.bid = 50;
     draft.auction.leaderId = null;
+    draft.auction.passedCaptains = [];
     draft.auction.history.unshift({ type: 'nomination', text: `${draft.players.find((p) => p.id === winner)?.tag} nominated at 50 coins` });
   });
   const votesIn = Object.keys(auction.votes).length;
 
   return (
     <div className="voting-room">
-      <div className="room-banner"><span><Vote size={18} /> Nomination round</span><div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}><strong>{votesIn} of {state.captains.length} votes locked</strong>{onReset && <button className="ghost btn-danger btn-xs" onClick={onReset}><RotateCcw size={13} /> Reset auction</button>}</div></div>
+      <div className="room-banner"><span><Vote size={18} /> Nomination round</span><div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}><strong>{votesIn} of {state.captains.length} votes locked</strong>{onReset && user.role !== 'captain' && <button className="ghost btn-danger btn-xs" onClick={onReset}><RotateCcw size={13} /> Reset auction</button>}</div></div>
       <div className="vote-heading"><span className="page-kicker">Auction room · Round 01</span><h1>Who hits the block first?</h1><p>Every captain gets one vote. Majority wins; tied nominations are decided at random.</p></div>
       <div className="vote-grid">
         {state.players.filter((player) => !soldIds.has(player.id) && (candidates.includes(player.id) || currentData.shortlist.includes(player.id))).map((player) => {
@@ -2572,8 +2605,16 @@ function BiddingRoom({ user, state, updateState, onReset }) {
   const nextBid = auction.leaderId ? auction.bid + 25 : 50;
   const teamSize = state.teamSize || 11;
   const squadSize = (captainId, data) => 1 + new Set((data.squad || []).filter((playerId) => playerId !== captainId)).size;
-  const squadFull = squadSize(user.id, state.captainData[user.id]) >= teamSize;
-  const canAfford = state.captainData[user.id].budget >= nextBid && !squadFull;
+  
+  const isCaptainUser = user.role === 'captain';
+  const cData = isCaptainUser ? state.captainData[user.id] : null;
+  const filled = cData ? squadSize(user.id, cData) : 0;
+  const needed = teamSize - filled;
+  const reserveAmount = Math.max(0, needed - 1) * 50;
+  const availableBudget = cData ? cData.budget - reserveAmount : 0;
+  const squadFull = cData ? filled >= teamSize : true;
+  const canAfford = cData ? availableBudget >= nextBid && !squadFull : false;
+  const hasPassed = auction.passedCaptains?.includes(user.id);
 
   const [timeLeft, setTimeLeft] = useState(0);
 
@@ -2594,7 +2635,13 @@ function BiddingRoom({ user, state, updateState, onReset }) {
   const bid = () => {
     updateState((draft) => {
       const price = draft.auction.leaderId ? draft.auction.bid + 25 : 50;
-      if (draft.captainData[user.id].budget < price) return;
+      const cDataDraft = draft.captainData[user.id];
+      const filledDraft = squadSize(user.id, cDataDraft);
+      const neededDraft = teamSize - filledDraft;
+      const reserveAmountDraft = Math.max(0, neededDraft - 1) * 50;
+      const availableBudgetDraft = cDataDraft.budget - reserveAmountDraft;
+      
+      if (availableBudgetDraft < price) return;
       draft.auction.bid = price;
       draft.auction.leaderId = user.id;
       draft.auction.countdownEndTime = null;
@@ -2602,13 +2649,21 @@ function BiddingRoom({ user, state, updateState, onReset }) {
       draft.auction.history.unshift({ type: 'bid', text: `${state.captains.find((c) => c.id === user.id)?.handle || state.captains.find((c) => c.id === user.id)?.tag || ''} bid ${price}` });
     });
   };
+
   const rivalBid = () => updateState((draft) => {
     const rivalPrice = draft.auction.leaderId ? draft.auction.bid + 25 : 50;
-    const rivals = state.captains.filter((captain) => (
-      captain.id !== user.id
-      && draft.captainData[captain.id].budget >= rivalPrice
-      && squadSize(captain.id, draft.captainData[captain.id]) < teamSize
-    ));
+    const rivals = state.captains.filter((captain) => {
+      const cDataRival = draft.captainData[captain.id];
+      const filledRival = squadSize(captain.id, cDataRival);
+      const neededRival = teamSize - filledRival;
+      const reserveAmountRival = Math.max(0, neededRival - 1) * 50;
+      const availableBudgetRival = cDataRival.budget - reserveAmountRival;
+      return (
+        captain.id !== user.id
+        && availableBudgetRival >= rivalPrice
+        && filledRival < teamSize
+      );
+    });
     if (!rivals.length) return;
     const rival = rivals[Math.floor(Math.random() * rivals.length)];
     draft.auction.bid = rivalPrice;
@@ -2617,6 +2672,104 @@ function BiddingRoom({ user, state, updateState, onReset }) {
     draft.auction.lastBidTime = Date.now();
     draft.auction.history.unshift({ type: 'bid', text: `${rival.handle || rival.tag || ''} bid ${draft.auction.bid}` });
   });
+
+  const passCurrentPlayer = () => {
+    if (!isCaptainUser) return;
+    updateState((draft) => {
+      const tourId = tournament.id;
+      const tAuction = draft.tournamentAuctions[tourId];
+      if (!tAuction.passedCaptains) {
+        tAuction.passedCaptains = [];
+      }
+      if (!tAuction.passedCaptains.includes(user.id)) {
+        tAuction.passedCaptains.push(user.id);
+      }
+
+      tAuction.history.unshift({
+        type: 'pass',
+        text: `${state.captains.find((c) => c.id === user.id)?.handle || state.captains.find((c) => c.id === user.id)?.tag || ''} passed`
+      });
+
+      // Check if all open teams have passed
+      const tCapData = draft.tournamentCaptainData[tourId] || {};
+      const openTeams = tournament.captains.filter((cap) => {
+        const data = tCapData[cap.id] || { squad: [] };
+        const f = 1 + new Set((data.squad || []).filter((pid) => pid !== cap.id)).size;
+        return f < teamSize;
+      });
+
+      const allPassed = openTeams.every((cap) => tAuction.passedCaptains.includes(cap.id));
+      if (allPassed) {
+        // Auto-pass player back to the pool
+        const passed = draft.players.find((item) => item.id === tAuction.playerId);
+        const passEntry = { type: 'pass', text: `${passed?.tag || 'Player'} passed · no sale, back in the pool` };
+
+        const order = tAuction.order || [];
+        const sold = new Set(Object.values(tCapData).flatMap((d) => d.squad || []));
+        const remainingOrder = order.filter((pid) => !sold.has(pid));
+        const unsoldPlayers = draft.players.filter((p) => !sold.has(p.id) && !tournament.captains.some(cap => cap.id === p.id));
+        const remainingOpenTeams = tournament.captains.filter((cap) => {
+          const data = tCapData[cap.id] || { squad: [] };
+          const f = 1 + new Set((data.squad || []).filter((pid) => pid !== cap.id)).size;
+          return f < teamSize;
+        });
+
+        if (remainingOpenTeams.length === 0 || unsoldPlayers.length === 0) {
+          draft.tournamentAuctions[tourId] = {
+            phase: 'complete',
+            votes: {},
+            playerId: null,
+            bid: 0,
+            leaderId: null,
+            history: [{ type: 'complete', text: 'Auction complete · All squads set' }, passEntry, ...tAuction.history]
+          };
+        } else if (remainingOrder.length > 0) {
+          const nextPlayerId = remainingOrder.shift();
+          draft.tournamentAuctions[tourId] = {
+            ...tAuction,
+            phase: 'bidding',
+            playerId: nextPlayerId,
+            bid: 50,
+            leaderId: null,
+            countdownEndTime: null,
+            lastBidTime: 0,
+            passedCaptains: [],
+            order: remainingOrder,
+            history: [passEntry, ...tAuction.history]
+          };
+        } else {
+          // Auto-queue remaining unsold players
+          const unsoldRegistered = unsoldPlayers.filter((p) => !tournament.captains.some((c) => c.id === p.id));
+          if (unsoldRegistered.length > 0) {
+            const shuffled = [...unsoldRegistered].sort(() => Math.random() - 0.5);
+            const nextPlayerId = shuffled.shift();
+            const nextOrder = shuffled.map((p) => p.id);
+            draft.tournamentAuctions[tourId] = {
+              ...tAuction,
+              phase: 'bidding',
+              playerId: nextPlayerId,
+              bid: 50,
+              leaderId: null,
+              countdownEndTime: null,
+              lastBidTime: 0,
+              passedCaptains: [],
+              order: nextOrder,
+              history: [passEntry, ...tAuction.history]
+            };
+          } else {
+            draft.tournamentAuctions[tourId] = {
+              phase: 'complete',
+              votes: {},
+              playerId: null,
+              bid: 0,
+              leaderId: null,
+              history: [{ type: 'complete', text: 'Auction complete · All squads set' }, passEntry, ...tAuction.history]
+            };
+          }
+        }
+      }
+    });
+  };
   const sell = () => updateState((draft) => {
     if (!draft.auction.leaderId) return;
     const winner = draft.auction.leaderId;
@@ -2649,7 +2802,7 @@ function BiddingRoom({ user, state, updateState, onReset }) {
 
   return (
     <div className="auction-stage">
-      <div className="auction-topline"><span><span className="live-dot" /> Live auction</span><strong>Lot 01</strong><div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}><span>Minimum raise · 25</span>{onReset && <button className="ghost btn-danger btn-xs" onClick={onReset}><RotateCcw size={13} /> Reset auction</button>}</div></div>
+      <div className="auction-topline"><span><span className="live-dot" /> Live auction</span><strong>Lot 01</strong><div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}><span>Minimum raise · 25</span>{onReset && !isCaptainUser && <button className="ghost btn-danger btn-xs" onClick={onReset}><RotateCcw size={13} /> Reset auction</button>}</div></div>
       <div className="auction-layout">
         <section className="lot-card">
           <div className="lot-stripe" />
@@ -2670,10 +2823,21 @@ function BiddingRoom({ user, state, updateState, onReset }) {
               <Clock3 size={15} /> Closing in {timeLeft}s
             </div>
           )}
-          <button className="bid-button" onClick={bid} disabled={!canAfford || auction.leaderId === user.id}>
-            <span>Place bid</span><strong><Coins size={22} /> {nextBid}</strong>
+          <button className="bid-button" onClick={bid} disabled={!canAfford || auction.leaderId === user.id || hasPassed}>
+            <span>{hasPassed ? 'Passed' : 'Place bid'}</span><strong><Coins size={22} /> {nextBid}</strong>
           </button>
-          <p className="bid-helper">You have <b>{money(state.captainData[user.id].budget)}</b> coins available.{squadFull && <><br /><b>Your squad is full.</b></>}</p>
+          {isCaptainUser && !hasPassed && !squadFull && (
+            <button className="secondary full" onClick={passCurrentPlayer} style={{ marginTop: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+              <X size={15} /> Pass on Player
+            </button>
+          )}
+          <p className="bid-helper">
+            {isCaptainUser ? (
+              <>You have <b>{money(cData?.budget || 0)}</b> coins available (<b>{money(availableBudget)}</b> max bid).{squadFull && <><br /><b>Your squad is full.</b></>}</>
+            ) : (
+              <>Viewing as Organizer/Player</>
+            )}
+          </p>
         </section>
         <aside className="standings-card">
           <h2>Captain budgets</h2>
@@ -2684,7 +2848,27 @@ function BiddingRoom({ user, state, updateState, onReset }) {
             const isFull = filled >= teamSize;
             return (
               <div className={auction.leaderId === captain.id ? 'leading' : ''} key={captain.id}>
-                <ClubMark club={club} size="xs" />
+                <div style={{ position: 'relative' }}>
+                  <ClubMark club={club} size="xs" />
+                  {auction.passedCaptains?.includes(captain.id) && (
+                    <div style={{
+                      position: 'absolute',
+                      top: -3,
+                      right: -3,
+                      background: 'var(--red, #ff3b30)',
+                      color: '#fff',
+                      borderRadius: '50%',
+                      width: '12px',
+                      height: '12px',
+                      display: 'grid',
+                      placeItems: 'center',
+                      fontSize: '8px',
+                      fontWeight: 'bold',
+                      lineHeight: 1,
+                      border: '1px solid var(--panel)'
+                    }}>✕</div>
+                  )}
+                </div>
                 <span>
                   <strong>{club.name}</strong>
                   {isFull
