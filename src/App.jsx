@@ -2811,6 +2811,83 @@ function TournamentHub({ user, state, updateState }) {
   const [hScorers, setHScorers] = useState([]);
   const [aScorers, setAScorers] = useState([]);
 
+  const [tradeClubA, setTradeClubA] = useState('');
+  const [tradePlayerA, setTradePlayerA] = useState('');
+  const [tradeClubB, setTradeClubB] = useState('');
+  const [tradePlayerB, setTradePlayerB] = useState('');
+
+  const squadAPlayers = state.captainData?.[tradeClubA]?.squad || [];
+  const tradableAPlayers = squadAPlayers.filter((pid) => pid !== tradeClubA).map((pid) => {
+    return state.players.find((p) => p.id === pid);
+  }).filter(Boolean);
+
+  const squadBPlayers = state.captainData?.[tradeClubB]?.squad || [];
+  const tradableBPlayers = squadBPlayers.filter((pid) => pid !== tradeClubB).map((pid) => {
+    return state.players.find((p) => p.id === pid);
+  }).filter(Boolean);
+
+  useEffect(() => {
+    if (!tradeClubA && state.captains?.[0]) {
+      setTradeClubA(state.captains[0].id);
+    }
+    if (!tradeClubB && state.captains?.[1]) {
+      setTradeClubB(state.captains[1].id);
+    }
+  }, [state.captains, tradeClubA, tradeClubB]);
+
+  useEffect(() => {
+    if (tradableAPlayers.length > 0 && !tradableAPlayers.some((p) => p.id === tradePlayerA)) {
+      setTradePlayerA(tradableAPlayers[0].id);
+    }
+  }, [tradeClubA, tradableAPlayers, tradePlayerA]);
+
+  useEffect(() => {
+    if (tradableBPlayers.length > 0 && !tradableBPlayers.some((p) => p.id === tradePlayerB)) {
+      setTradePlayerB(tradableBPlayers[0].id);
+    }
+  }, [tradeClubB, tradableBPlayers, tradePlayerB]);
+
+  const executeTrade = () => {
+    if (!tradeClubA || !tradeClubB || !tradePlayerA || !tradePlayerB) {
+      alert("Please select both clubs and players to perform the trade.");
+      return;
+    }
+    if (tradeClubA === tradeClubB) {
+      alert("Cannot trade within the same club.");
+      return;
+    }
+    
+    const playerAObj = state.players.find((p) => p.id === tradePlayerA);
+    const playerBObj = state.players.find((p) => p.id === tradePlayerB);
+    const clubAName = clubFor(tradeClubA).name;
+    const clubBName = clubFor(tradeClubB).name;
+
+    if (!window.confirm(`Are you sure you want to trade ${playerAObj?.name} (${clubAName}) for ${playerBObj?.name} (${clubBName})?`)) {
+      return;
+    }
+
+    updateState((draft) => {
+      const squadA = draft.captainData[tradeClubA].squad || [];
+      const squadB = draft.captainData[tradeClubB].squad || [];
+
+      draft.captainData[tradeClubA].squad = squadA.map((id) => id === tradePlayerA ? tradePlayerB : id);
+      draft.captainData[tradeClubB].squad = squadB.map((id) => id === tradePlayerB ? tradePlayerA : id);
+
+      const lineupA = draft.captainData[tradeClubA].lineup || {};
+      const lineupB = draft.captainData[tradeClubB].lineup || {};
+
+      const posA = Object.keys(lineupA).find((pos) => lineupA[pos] === tradePlayerA);
+      const posB = Object.keys(lineupB).find((pos) => lineupB[pos] === tradePlayerB);
+
+      if (posA) lineupA[posA] = tradePlayerB;
+      if (posB) lineupB[posB] = tradePlayerA;
+    });
+
+    alert("Trade executed successfully!");
+    setTradePlayerA('');
+    setTradePlayerB('');
+  };
+
   useEffect(() => { setMatchDate(nextMatch?.scheduledAt || suggestKickoffDate()); }, [nextMatch?.id, nextMatch?.scheduledAt]);
 
   const clubFor = (teamId) => getClubInfo(state.captains.find((captain) => captain.id === teamId));
@@ -3142,6 +3219,80 @@ function TournamentHub({ user, state, updateState }) {
         <section className="panel top-scorers"><div className="panel-head"><div><span className="section-step">02</span><h2>Club top scorers</h2></div><Goal size={18} /></div>{state.captains.map((captain) => { const club = getClubInfo(captain); return <div key={captain.id}><ClubMark club={club} size="xs" /><span><strong>{club.name}</strong><small>{topScorerFor(captain.id)}</small></span></div>; })}</section>
         <section className="panel fixture-list"><div className="panel-head"><div><span className="section-step">03</span><h2>Official fixture path</h2></div><CalendarDays size={18} /></div>{(competition.matches || []).map((match) => <div className={match.id === nextMatch?.id ? 'current' : ''} key={match.id}><span>{match.label}</span><strong>{clubFor(match.homeId).name} <b>{match.status === 'completed' ? `${match.homeScore}–${match.awayScore}` : 'vs'}</b> {clubFor(match.awayId).name}</strong><small>{match.status === 'completed' ? 'Final' : match.scheduledAt ? new Date(match.scheduledAt).toLocaleString() : 'Date TBD'}</small></div>)}</section>
       </div>
+      {isOrganizer && (
+        <section className="panel squad-trading" style={{ marginTop: '25px' }}>
+          <div className="panel-head">
+            <div>
+              <span className="section-step">04</span>
+              <h2>Squad player trading</h2>
+            </div>
+            <RefreshCw size={18} />
+          </div>
+          <p className="helper-text" style={{ marginBottom: '20px' }}>
+            Swap players 1-for-1 between two squads. Note: Captains cannot be traded.
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', gap: '20px', marginBottom: '20px' }}>
+            
+            {/* Club A Selection */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <label className="field-label" style={{ margin: 0 }}>From Club</label>
+              <div className="select-wrap" style={{ margin: 0 }}>
+                <select value={tradeClubA} onChange={(e) => setTradeClubA(e.target.value)}>
+                  {state.captains.map((c) => (
+                    <option key={c.id} value={c.id}>{getClubInfo(c).name}</option>
+                  ))}
+                </select>
+                <ChevronDown size={17} />
+              </div>
+
+              <label className="field-label" style={{ margin: 0 }}>Trade Player</label>
+              <div className="select-wrap" style={{ margin: 0 }}>
+                <select value={tradePlayerA} onChange={(e) => setTradePlayerA(e.target.value)}>
+                  <option value="">Select Player</option>
+                  {tradableAPlayers.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name} ({p.primaryPosition})</option>
+                  ))}
+                </select>
+                <ChevronDown size={17} />
+              </div>
+            </div>
+
+            {/* Swap Arrow Icon */}
+            <div style={{ display: 'grid', placeItems: 'center', width: '38px', height: '38px', borderRadius: '50%', background: 'var(--panel-2)', border: '1px solid var(--line)' }}>
+              <RefreshCw size={16} style={{ color: 'var(--lime)' }} />
+            </div>
+
+            {/* Club B Selection */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <label className="field-label" style={{ margin: 0 }}>To Club</label>
+              <div className="select-wrap" style={{ margin: 0 }}>
+                <select value={tradeClubB} onChange={(e) => setTradeClubB(e.target.value)}>
+                  {state.captains.map((c) => (
+                    <option key={c.id} value={c.id}>{getClubInfo(c).name}</option>
+                  ))}
+                </select>
+                <ChevronDown size={17} />
+              </div>
+
+              <label className="field-label" style={{ margin: 0 }}>For Player</label>
+              <div className="select-wrap" style={{ margin: 0 }}>
+                <select value={tradePlayerB} onChange={(e) => setTradePlayerB(e.target.value)}>
+                  <option value="">Select Player</option>
+                  {tradableBPlayers.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name} ({p.primaryPosition})</option>
+                  ))}
+                </select>
+                <ChevronDown size={17} />
+              </div>
+            </div>
+
+          </div>
+          <button className="primary" onClick={executeTrade} style={{ float: 'right' }} disabled={!tradePlayerA || !tradePlayerB || tradeClubA === tradeClubB}>
+            <RefreshCw size={15} /> Execute Trade Swap
+          </button>
+          <div style={{ clear: 'both' }} />
+        </section>
+      )}
     </>
   );
 }
