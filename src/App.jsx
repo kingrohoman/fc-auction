@@ -608,7 +608,7 @@ Amado,CAM,CM
 Arman,CM,CDM
 Saad Bhai,CM,CAM
 Aamir,ST,CAM
-Shoumik,ST,CAM`;
+Kazi,ST,CAM`;
 
 function normalizePosition(pos) {
   if (!pos) return '';
@@ -1666,7 +1666,7 @@ function OrganizerDashboard({ state, updateState, onLogout }) {
       + "Arman,CM,CDM\n"
       + "Saad Bhai,CM,CAM\n"
       + "Aamir,ST,CAM\n"
-      + "Shoumik,ST,CAM";
+      + "Kazi,ST,CAM";
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
